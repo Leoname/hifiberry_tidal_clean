@@ -269,6 +269,14 @@ systemctl enable tidal.service
 
 log INFO "Finished enabling TIDAL Connect Service."
 
+# Enable volume bridge service
+log INFO  "Enabling TIDAL Connect Volume Bridge Service."
+eval "echo \"$(cat templates/tidal-volume-bridge.service.tpl)\"" >/etc/systemd/system/tidal-volume-bridge.service
+
+systemctl enable tidal-volume-bridge.service
+
+log INFO "Finished enabling TIDAL Connect Volume Bridge Service."
+
 # Add TIDAL Connect Source to Beocreate
 log INFO "Adding TIDAL Connect Source to Beocreate."
 if [ -L "${BEOCREATE_SYMLINK_FOLDER}" ]; then
