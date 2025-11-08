@@ -11,7 +11,8 @@ RemainAfterExit=yes
 
 # Restart avahi to clear any stale mDNS registrations before starting
 ExecStartPre=/bin/systemctl restart avahi-daemon
-ExecStartPre=/bin/sleep 2
+ExecStartPre=/bin/sleep 5
+ExecStartPre=/bin/bash -c 'until systemctl is-active --quiet avahi-daemon; do sleep 0.5; done'
 
 #ExecStartPre=/bin/docker-compose pull --quiet
 ExecStart=/bin/docker-compose up -d
