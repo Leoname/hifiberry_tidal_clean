@@ -26,11 +26,12 @@ while true; do
     [ -z "$STATE" ] && STATE="IDLE"
     
     # Parse metadata fields
-    ARTIST=$(echo "$TMUX_OUTPUT" | grep '^xartists:' | sed 's/^xartists: \(.*\)x*$/\1/' | sed 's/ *x*$//')
-    ALBUM=$(echo "$TMUX_OUTPUT" | grep '^xalbum name:' | sed 's/^xalbum name: \(.*\)x*$/\1/' | sed 's/ *x*$//')
-    TITLE=$(echo "$TMUX_OUTPUT" | grep '^xtitle:' | sed 's/^xtitle: \(.*\)x*$/\1/' | sed 's/ *x*$//')
-    DURATION=$(echo "$TMUX_OUTPUT" | grep '^xduration:' | sed 's/^xduration: \(.*\)x*$/\1/' | sed 's/ *x*$//')
-    SHUFFLE=$(echo "$TMUX_OUTPUT" | grep '^xshuffle:' | sed 's/^xshuffle: \(.*\)x*$/\1/' | sed 's/ *x*$//')
+    # Extract value up to first "xx" separator or end of line, then trim trailing spaces and 'x' characters
+    ARTIST=$(echo "$TMUX_OUTPUT" | grep '^xartists:' | sed 's/^xartists: //' | sed 's/xx.*$//' | sed 's/ *x*$//' | sed 's/[[:space:]]*$//')
+    ALBUM=$(echo "$TMUX_OUTPUT" | grep '^xalbum name:' | sed 's/^xalbum name: //' | sed 's/xx.*$//' | sed 's/ *x*$//' | sed 's/[[:space:]]*$//')
+    TITLE=$(echo "$TMUX_OUTPUT" | grep '^xtitle:' | sed 's/^xtitle: //' | sed 's/xx.*$//' | sed 's/ *x*$//' | sed 's/[[:space:]]*$//')
+    DURATION=$(echo "$TMUX_OUTPUT" | grep '^xduration:' | sed 's/^xduration: //' | sed 's/xx.*$//' | sed 's/[[:space:]]*$//')
+    SHUFFLE=$(echo "$TMUX_OUTPUT" | grep '^xshuffle:' | sed 's/^xshuffle: //' | sed 's/xx.*$//' | sed 's/[[:space:]]*$//')
     
     # Parse position (e.g., "38 / 227")
     POSITION_LINE=$(echo "$TMUX_OUTPUT" | grep -E '^ *[0-9]+ */ *[0-9]+$' | tr -d ' ')
