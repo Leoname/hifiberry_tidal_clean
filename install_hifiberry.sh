@@ -435,12 +435,13 @@ log INFO "Adding TIDAL Connect Source to Beocreate UI."
 ln -s ${PWD}/beocreate/beo-extensions/tidal ${BEOCREATE_SYMLINK_FOLDER}
 log INFO "Finished adding TIDAL Connect Source to Beocreate."
 
-# Ensure scripts are executable
-log INFO "Setting script permissions."
-chmod +x ${PWD}/volume-bridge.sh 2>/dev/null || true
-chmod +x ${PWD}/tidal-watchdog.sh 2>/dev/null || true
-chmod +x ${PWD}/start-tidal-service.sh 2>/dev/null || true
-chmod +x ${PWD}/stop-tidal-service.sh 2>/dev/null || true
+        # Ensure scripts are executable
+        log INFO "Setting script permissions."
+        chmod +x ${PWD}/volume-bridge.sh 2>/dev/null || true
+        chmod +x ${PWD}/tidal-watchdog.sh 2>/dev/null || true
+        chmod +x ${PWD}/wait-for-avahi.sh 2>/dev/null || true
+        chmod +x ${PWD}/start-tidal-service.sh 2>/dev/null || true
+        chmod +x ${PWD}/stop-tidal-service.sh 2>/dev/null || true
 
 log INFO "Installation Completed."
 
