@@ -83,12 +83,25 @@ class TidalControl(PlayerControl):
                 self.is_active_player = False
                 return
             
-            # Check if file is recent (updated within last 5 seconds)
+            # Check if file is recent (updated within last 30 seconds)
+            # This allows Tidal to show up even when idle, as long as the service is running
             mtime = os.path.getmtime(self.status_file)
-            if time() - mtime > 5:
-                self.is_active_player = False
-                self.state = TIDAL_STATE_STOPPED
-                return
+            if time() - mtime > 30:
+                # File is stale - check if container is running as fallback
+                try:
+                    result = subprocess.run(['docker', 'ps', '-q', '-f', 'name=tidal_connect'], 
+                                          capture_output=True, text=True, timeout=2)
+                    if result.returncode == 0 and result.stdout.strip():
+                        # Container is running, keep player active but mark as stopped
+                        self.is_active_player = True
+                        self.state = TIDAL_STATE_STOPPED
+                        return
+                    else:
+                        self.is_active_player = False
+                        return
+                except:
+                    self.is_active_player = False
+                    return
             
             with open(self.status_file, 'r') as f:
                 status = json.load(f)
