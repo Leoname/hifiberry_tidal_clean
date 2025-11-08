@@ -347,9 +347,26 @@ if [ -f "/opt/audiocontrol2/audiocontrol2.py" ]; then
   
   if [ "$HAS_REGISTRATION" = "no" ]; then
     log INFO "Adding Tidal registration to AudioControl2."
-    # Add registration
-    PLACEHOLDER="$(sed -nE 's/^(.*)mpris\.register_nonmpris_player\(SPOTIFYNAME,vlrctl\)$/\1/p' "$AC_CONTROL_FILE")"
-    sed -i "/mpris.register_nonmpris_player(SPOTIFYNAME,vlrctl)/a \\\n${PLACEHOLDER}# TidalControl\n${PLACEHOLDER}tdctl = TidalControl()\n${PLACEHOLDER}tdctl.start()\n${PLACEHOLDER}mpris.register_nonmpris_player(tdctl.playername,tdctl)" "$AC_CONTROL_FILE"
+    # Use a more robust method to add registration
+    # Find the line with Spotify registration
+    SPOTIFY_LINE=$(grep -n "mpris.register_nonmpris_player(SPOTIFYNAME,vlrctl)" "$AC_CONTROL_FILE" | head -1 | cut -d: -f1)
+    
+    if [ -n "$SPOTIFY_LINE" ]; then
+      # Get indentation from that line
+      INDENT=$(sed -n "${SPOTIFY_LINE}p" "$AC_CONTROL_FILE" | sed 's/^\([[:space:]]*\).*/\1/')
+      
+      # Create registration code with proper indentation
+      REGISTRATION_CODE="${INDENT}# TidalControl
+${INDENT}tdctl = TidalControl()
+${INDENT}tdctl.start()
+${INDENT}mpris.register_nonmpris_player(tdctl.playername,tdctl)"
+      
+      # Insert after Spotify registration line
+      echo "$REGISTRATION_CODE" | sed -i "${SPOTIFY_LINE}r /dev/stdin" "$AC_CONTROL_FILE"
+      log INFO "Tidal registration code added successfully."
+    else
+      log ERROR "Could not find Spotify registration line. Manual configuration may be required."
+    fi
   fi
   
   if [ "$HAS_IMPORT" = "yes" ] && [ "$HAS_REGISTRATION" = "yes" ]; then
