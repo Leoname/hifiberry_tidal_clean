@@ -18,7 +18,6 @@ ExecStart=/bin/docker-compose up -d
 
 # Properly stop the container and restart avahi to clean up mDNS
 ExecStop=/bin/docker-compose down
-ExecStopPost=/bin/sleep 1
 ExecStopPost=/bin/systemctl restart avahi-daemon
 
 #ExecReload=/bin/docker-compose pull --quiet

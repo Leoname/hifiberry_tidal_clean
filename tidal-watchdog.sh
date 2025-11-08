@@ -56,22 +56,43 @@ restart_service() {
     
     log "🔄 Restarting Tidal Connect service (Reason: $reason)"
     
-    # Restart the service
-    systemctl restart tidal.service
+    # If service is stuck in stopping state, force stop it first
+    if systemctl is-active --quiet tidal.service || systemctl is-failed tidal.service; then
+        # Service is active or failed, try normal restart
+        systemctl restart tidal.service
+    else
+        # Service might be stuck, force stop then start
+        log "⚠ Service appears stuck, forcing stop..."
+        systemctl stop tidal.service --no-block 2>/dev/null || true
+        sleep 5
+        # Kill any stuck docker-compose processes
+        pkill -f "docker-compose.*tidal" 2>/dev/null || true
+        sleep 2
+        systemctl start tidal.service
+    fi
     
-    # Wait for container to start
-    sleep 10
+    # Wait for service to fully start (longer timeout for stuck services)
+    local max_wait=30
+    local waited=0
+    while [ $waited -lt $max_wait ]; do
+        if [ "$(get_container_status)" = "true" ]; then
+            break
+        fi
+        sleep 2
+        waited=$((waited + 2))
+    done
     
     if [ "$(get_container_status)" = "true" ]; then
-        log "✓ Service restarted successfully"
+        log "✓ Service restarted successfully (waited ${waited}s)"
         LAST_RESTART=$current_time
         
         # Also restart volume bridge to ensure it reconnects
-        systemctl restart tidal-volume-bridge.service 2>/dev/null
+        sleep 2
+        systemctl restart tidal-volume-bridge.service 2>/dev/null || true
         
         return 0
     else
-        log "✗ Service restart failed"
+        log "✗ Service restart failed after ${waited}s - container not running"
         return 1
     fi
 }
