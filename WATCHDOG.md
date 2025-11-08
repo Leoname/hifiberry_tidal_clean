@@ -39,9 +39,11 @@ When any of these issues are detected, the watchdog automatically restarts the T
 
 The watchdog looks for these specific error patterns in the Docker logs:
 
-- **Token Expiration**: `invalid_grant`, `token has expired`
-- **Connection Loss**: `handle_read_frame error`, `async_shutdown error`
+- **Token Expiration**: `invalid_grant`, `token has expired`, `authentication failed`
+- **Connection Loss**: `handle_read_frame error`, `connection refused`, `connection reset`, `socket disconnected` (but NOT normal "End of file" messages)
 - **Container Down**: Container not running
+
+**Note**: The watchdog ignores normal connection teardown messages like "End of file" (EOF) which are part of normal operation, not errors.
 
 ### Safety Features
 

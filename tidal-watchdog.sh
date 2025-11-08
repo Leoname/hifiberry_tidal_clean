@@ -21,12 +21,16 @@ check_for_errors() {
     RECENT_LOGS=$(docker logs --since ${CHECK_INTERVAL}s tidal_connect 2>&1)
     
     # Check for critical errors
-    if echo "$RECENT_LOGS" | grep -q "invalid_grant\|token has expired"; then
+    # Token expiration - these are clear errors that require restart
+    if echo "$RECENT_LOGS" | grep -qiE "(invalid_grant|token has expired|authentication.*failed)"; then
         echo "token_expired"
         return
     fi
     
-    if echo "$RECENT_LOGS" | grep -q "handle_read_frame error\|async_shutdown error"; then
+    # Connection loss - only trigger on actual errors, not normal EOF
+    # "End of file" (EOF) is normal during connection teardown, so we ignore those
+    if echo "$RECENT_LOGS" | grep -qiE "handle_read_frame error|connection.*refused|connection.*reset|socket.*disconnected" && \
+       ! echo "$RECENT_LOGS" | grep -qiE "asio\.misc:2.*End of file|normal.*shutdown"; then
         echo "connection_lost"
         return
     fi
