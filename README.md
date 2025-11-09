@@ -45,6 +45,8 @@ This port does much more than just providing the docker image with TIDAL Connect
 * ~~Remote volume control (via IOS/Android) is not working on Hifiberry DAC2 Pro~~ **FIXED!** Now works via volume bridge
 * Token expiration may require reconnecting from Tidal app (watchdog handles automatic recovery)
 * Web UI volume slider may not reflect phone volume changes in real-time (phone control works, just display lag)
+* **mDNS collision during rapid restarts**: Fixed in latest version - service was colliding with its own mDNS registration (see [docs/MDNS_COLLISION_FIX.md](docs/MDNS_COLLISION_FIX.md))
+* **Name collision**: In rare cases, if another device on your network has the same name, TIDAL won't discover your device (see [Troubleshooting](#troubleshooting))
 
 # Installation
 
@@ -281,49 +283,58 @@ systemctl stop tidal.service
 systemctl start tidal.service
 ```
 
-4. Troubleshooting
+## Troubleshooting
 
-* NO VOLUME *
-Please check your volume setting on your device and use your device to increase the volume. 
-If setup/dac is recognized it you will see volume changes also updating in the HifiBerry Audio Controls.
+### Device Not Found in TIDAL App? 🔍
 
-* DAC NOT RECOGNIZED / NOT PLAYING *
-There are known issues whereas playback is not working, as the DAC is not recognized.
-You can check the logs from the Docker image by running:
-```
-docker logs docker_tidal-connect_1
-```
-This will list some debug information useful for trouble shooting.
-You can explicitly set the DAC playback device in the Docker/entrypoint.sh file.
+**Most common issue**: mDNS collision during rapid restarts (service colliding with itself)
 
-For 'HifiBerry Digi+ Pro', if it doesn't work out-of-the-box, you will need to edit the Docker/entrypoint.sh and use
- "snd_rpi_hifiberry_digi: HiFiBerry Digi+ Pro HiFi wm8804-spdif-0 (hw:0,0)" as default playback device (like below).
-```
-/app/ifi-tidal-release/bin/tidal_connect_application \
-   --tc-certificate-path "/app/ifi-tidal-release/id_certificate/IfiAudio_ZenStream.dat" \
-   -f "HiFiBerry" \
-   --playback-device "snd_rpi_hifiberry_digi: HiFiBerry Digi+ Pro HiFi wm8804-spdif-0 (hw:0,0)" \
-   --codec-mpegh true \
-   --codec-mqa false \
-   --model-name "HiFiBerry" \
-   --disable-app-security false \
-   --disable-web-security false \
-   --enable-mqa-passthrough false \
-   --log-level 3 \
-   --enable-websocket-log "0" \
+**Quick fix** - Update to latest version:
+```bash
+cd /data/tidal-connect-docker
+git pull
+eval "echo \"$(cat templates/tidal.service.tpl)\"" >/etc/systemd/system/tidal.service
+systemctl daemon-reload
+systemctl stop tidal.service && sleep 5 && systemctl start tidal.service
 ```
 
-Note you can list/print your device/DAC name by running the following command
-```
-docker run --device /dev/snd \
-  -v /var/run/dbus:/var/run/dbus \
-  -v /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket \
-  --entrypoint "" \
-  edgecrush3r/tidal-connect /app/ifi-tidal-release/bin/ifi-pa-devs-get 2>/dev/null | grep device#
+**If still not working** - Try changing device name:
+```bash
+./fix-name-collision.sh
 ```
 
+### Run Diagnostics
+```bash
+./check-tidal-status.sh
+```
 
-Edit the entryfile.sh and set the playback-device accordingly should solve your issue.
+### Documentation
+
+📚 **[Complete Documentation →](docs/)**
+
+Quick links:
+- [Troubleshooting Guide](docs/TROUBLESHOOTING.md) - Fix common issues
+- [System Architecture](docs/ARCHITECTURE.md) - How it works
+- [Changelog](docs/CHANGELOG.md) - Version history
+
+### Quick Checks
+
+**Check logs**:
+```bash
+docker logs tidal_connect --tail 50
+tail -f /var/log/tidal-watchdog.log
+```
+
+**Restart services**:
+```bash
+systemctl restart avahi-daemon
+systemctl restart tidal.service
+```
+
+**List audio devices**:
+```bash
+docker exec tidal_connect /app/ifi-tidal-release/bin/ifi-pa-devs-get 2>/dev/null | grep device#
+```
 
 # *** Other Stuff *** #
 

@@ -440,8 +440,12 @@ log INFO "Finished adding TIDAL Connect Source to Beocreate."
         chmod +x ${PWD}/volume-bridge.sh 2>/dev/null || true
         chmod +x ${PWD}/tidal-watchdog.sh 2>/dev/null || true
         chmod +x ${PWD}/wait-for-avahi.sh 2>/dev/null || true
+        chmod +x ${PWD}/wait-for-container.sh 2>/dev/null || true
+        chmod +x ${PWD}/wait-for-mdns-clear.sh 2>/dev/null || true
         chmod +x ${PWD}/start-tidal-service.sh 2>/dev/null || true
         chmod +x ${PWD}/stop-tidal-service.sh 2>/dev/null || true
+        chmod +x ${PWD}/check-tidal-status.sh 2>/dev/null || true
+        chmod +x ${PWD}/fix-name-collision.sh 2>/dev/null || true
 
 log INFO "Installation Completed."
 

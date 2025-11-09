@@ -44,6 +44,45 @@ check_for_errors() {
     echo "ok"
 }
 
+wait_for_service_stopped() {
+    local max_wait=20
+    local waited=0
+    while [ $waited -lt $max_wait ]; do
+        if ! systemctl is-active --quiet tidal.service && \
+           [ "$(get_container_status)" != "true" ]; then
+            return 0
+        fi
+        sleep 1
+        waited=$((waited + 1))
+    done
+    return 1
+}
+
+wait_for_service_started() {
+    local max_wait=45
+    local waited=0
+    local check_interval=2
+    
+    while [ $waited -lt $max_wait ]; do
+        # Check if service is active AND container is running AND tidal app is running
+        if systemctl is-active --quiet tidal.service && \
+           [ "$(get_container_status)" = "true" ]; then
+            # Double-check tidal_connect_application is actually running
+            if docker exec tidal_connect pgrep -f "tidal_connect_application" >/dev/null 2>&1; then
+                # Give it a moment to stabilize
+                sleep 2
+                # Verify it didn't crash immediately
+                if docker exec tidal_connect pgrep -f "tidal_connect_application" >/dev/null 2>&1; then
+                    return 0
+                fi
+            fi
+        fi
+        sleep $check_interval
+        waited=$((waited + check_interval))
+    done
+    return 1
+}
+
 restart_service() {
     local reason="$1"
     local current_time=$(date +%s)
@@ -56,43 +95,59 @@ restart_service() {
     
     log "🔄 Restarting Tidal Connect service (Reason: $reason)"
     
-    # If service is stuck in stopping state, force stop it first
+    # Stop service if it's running
     if systemctl is-active --quiet tidal.service || systemctl is-failed tidal.service; then
-        # Service is active or failed, try normal restart
-        systemctl restart tidal.service
-    else
-        # Service might be stuck, force stop then start
-        log "⚠ Service appears stuck, forcing stop..."
-        systemctl stop tidal.service --no-block 2>/dev/null || true
-        sleep 5
-        # Kill any stuck docker-compose processes
-        pkill -f "docker-compose.*tidal" 2>/dev/null || true
-        sleep 2
-        systemctl start tidal.service
+        if systemctl is-failed tidal.service; then
+            log "   Service is in failed state, resetting..."
+            systemctl reset-failed tidal.service 2>/dev/null || true
+        fi
+        
+        log "   Stopping service..."
+        systemctl stop tidal.service
+        
+        if ! wait_for_service_stopped; then
+            log "⚠ Service did not stop cleanly, forcing..."
+            # Kill any stuck processes
+            pkill -f "docker-compose.*tidal" 2>/dev/null || true
+            docker stop tidal_connect 2>/dev/null || true
+            sleep 2
+        else
+            log "   Service stopped cleanly"
+        fi
     fi
     
-    # Wait for service to fully start (longer timeout for stuck services)
-    local max_wait=30
-    local waited=0
-    while [ $waited -lt $max_wait ]; do
-        if [ "$(get_container_status)" = "true" ]; then
-            break
-        fi
-        sleep 2
-        waited=$((waited + 2))
-    done
+    # Ensure clean state before starting
+    if docker ps -a | grep -q tidal_connect; then
+        docker rm -f tidal_connect 2>/dev/null || true
+    fi
     
-    if [ "$(get_container_status)" = "true" ]; then
-        log "✓ Service restarted successfully (waited ${waited}s)"
+    # Start service
+    log "   Starting service..."
+    systemctl start tidal.service
+    
+    # Wait for healthy state with proper verification
+    log "   Waiting for service to become healthy..."
+    if wait_for_service_started; then
+        log "✓ Service restarted successfully"
         LAST_RESTART=$current_time
         
-        # Also restart volume bridge to ensure it reconnects
-        sleep 2
+        # Restart volume bridge to ensure it reconnects
         systemctl restart tidal-volume-bridge.service 2>/dev/null || true
+        
+        # Check for immediate collision errors
+        sleep 3
+        if docker logs --since 3s tidal_connect 2>&1 | grep -q "AVAHI_CLIENT_S_COLLISION"; then
+            log "⚠ WARNING: mDNS collision detected after restart"
+            return 1
+        fi
         
         return 0
     else
-        log "✗ Service restart failed after ${waited}s - container not running"
+        log "✗ Service restart failed - container not healthy"
+        # Log diagnostics
+        systemctl status tidal.service --no-pager -l | head -15 | while read line; do
+            log "   $line"
+        done
         return 1
     fi
 }

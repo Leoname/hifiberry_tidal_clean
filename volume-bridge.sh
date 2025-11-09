@@ -12,7 +12,71 @@ echo "Starting Tidal Connect bridge..."
 echo "Monitoring speaker controller and syncing to ALSA mixer: $ALSA_MIXER"
 echo "Exporting metadata to: $STATUS_FILE"
 
+# Function to check if container is ready
+is_container_ready() {
+    docker ps | grep -q tidal_connect && \
+    docker exec tidal_connect pgrep -f "speaker_controller_application" >/dev/null 2>&1
+}
+
+# Function to wait for container with retry logic
+wait_for_container() {
+    local max_attempts=60  # 60 * 2s = 2 minutes
+    local attempt=0
+    
+    while [ $attempt -lt $max_attempts ]; do
+        if is_container_ready; then
+            echo "Container is ready (attempt $((attempt + 1)))"
+            return 0
+        fi
+        
+        if [ $((attempt % 10)) -eq 0 ] && [ $attempt -gt 0 ]; then
+            echo "Waiting for container... ($attempt attempts)"
+        fi
+        
+        sleep 2
+        attempt=$((attempt + 1))
+    done
+    
+    echo "ERROR: Container did not become ready after $max_attempts attempts"
+    return 1
+}
+
+# Wait for initial container startup
+if ! wait_for_container; then
+    echo "Exiting: Container not available"
+    exit 1
+fi
+
+CONSECUTIVE_ERRORS=0
+MAX_CONSECUTIVE_ERRORS=5
+
 while true; do
+    # Check if container is still available
+    if ! is_container_ready; then
+        echo "[$(date '+%H:%M:%S')] Container not available, waiting for restart..."
+        CONSECUTIVE_ERRORS=$((CONSECUTIVE_ERRORS + 1))
+        
+        if [ $CONSECUTIVE_ERRORS -ge $MAX_CONSECUTIVE_ERRORS ]; then
+            echo "Waiting for container to become available..."
+            if wait_for_container; then
+                echo "Container recovered, resuming monitoring"
+                CONSECUTIVE_ERRORS=0
+            else
+                echo "Container did not recover, retrying..."
+                sleep 10
+            fi
+        else
+            sleep 2
+        fi
+        continue
+    fi
+    
+    # Reset error counter on successful connection
+    if [ $CONSECUTIVE_ERRORS -gt 0 ]; then
+        echo "[$(date '+%H:%M:%S')] Container connection restored"
+        CONSECUTIVE_ERRORS=0
+    fi
+    
     # Capture tmux output from speaker_controller_application
     TMUX_OUTPUT=$(docker exec -t tidal_connect /usr/bin/tmux capture-pane -pS -50 2>/dev/null | tr -d '\r')
     

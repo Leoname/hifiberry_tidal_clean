@@ -8,17 +8,27 @@ Wants=avahi-daemon.service
 WorkingDirectory=${PWD}/Docker/
 Type=oneshot
 RemainAfterExit=yes
+TimeoutStartSec=45
+TimeoutStopSec=20
 
-# Restart avahi to clear any stale mDNS registrations before starting
-ExecStartPre=/bin/systemctl restart avahi-daemon
+# Ensure Avahi is running before we start
+ExecStartPre=/bin/bash -c 'systemctl is-active --quiet avahi-daemon || systemctl start avahi-daemon'
 ExecStartPre=${PWD}/wait-for-avahi.sh
 
+# Wait for mDNS from previous instance to clear (defensive, with verification)
+ExecStartPre=${PWD}/wait-for-mdns-clear.sh
+
+# Start container
 #ExecStartPre=/bin/docker-compose pull --quiet
 ExecStart=/bin/docker-compose up -d
 
-# Properly stop the container and restart avahi to clean up mDNS
-ExecStop=/bin/docker-compose down
-ExecStopPost=/bin/systemctl restart avahi-daemon
+# Wait for container to actually be healthy before considering service started
+ExecStartPost=${PWD}/wait-for-container.sh tidal_connect 30 1 healthy
+
+# Properly stop the container (gives it time to unregister from mDNS)
+ExecStop=/bin/docker-compose down --timeout 10
+# Wait for container to actually stop before proceeding
+ExecStopPost=${PWD}/wait-for-container.sh tidal_connect 10 1 stopped
 
 #ExecReload=/bin/docker-compose pull --quiet
 ExecReload=/bin/docker-compose up -d
