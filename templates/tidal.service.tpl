@@ -15,6 +15,10 @@ TimeoutStopSec=20
 ExecStartPre=/bin/bash -c 'systemctl is-active --quiet avahi-daemon || systemctl start avahi-daemon'
 ExecStartPre=${PWD}/wait-for-avahi.sh
 
+# Clean up stale containers from hard shutdown (critical for power-off scenarios)
+ExecStartPre=/bin/bash -c 'docker rm -f tidal_connect 2>/dev/null || true'
+ExecStartPre=/bin/bash -c 'docker ps -a | grep tidal_connect | awk "{print \\$1}" | xargs -r docker rm -f 2>/dev/null || true'
+
 # Wait for mDNS from previous instance to clear (defensive, with verification)
 ExecStartPre=${PWD}/wait-for-mdns-clear.sh
 

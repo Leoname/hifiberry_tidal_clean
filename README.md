@@ -34,6 +34,7 @@ This port does much more than just providing the docker image with TIDAL Connect
 - ✅ **Web UI Controls** - Play/pause, next, previous controls work from the HifiBerry web interface
 - ✅ **Connection Watchdog** - Automatic recovery from connection drops and token expiration
 - ✅ **WiFi Power Management** - Automatically disabled for improved responsiveness
+- ✅ **Hard Shutdown Resilient** - Designed for hard power-offs; automatic cleanup on boot ensures fresh start
 
 ## Audio Quality
 - Supports up to 24-bit/96kHz (depending on your DAC)
