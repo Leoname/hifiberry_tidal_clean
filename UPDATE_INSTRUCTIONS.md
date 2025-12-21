@@ -4,15 +4,32 @@ After the mDNS collision fixes and other improvements, here's what you need to d
 
 ## Initial Update (One-Time)
 
-### 1. Update the Scripts
+### Option 1: Use the Sync Script (Recommended)
 
 ```bash
 # On your HiFiBerry
 cd /data/tidal-connect-docker
-git pull origin master
-# Or if you need to set the remote:
-# git remote add clean https://github.com/Leoname/hifiberry_tidal_clean.git
-# git pull clean master
+./sync-from-github.sh
+```
+
+This script will:
+- Set up the git remote if needed
+- Pull the latest changes
+- Make scripts executable
+- Show you what to do next
+
+### Option 2: Manual Update
+
+```bash
+# On your HiFiBerry
+cd /data/tidal-connect-docker
+
+# Set up remote if needed
+git remote add clean https://github.com/Leoname/hifiberry_tidal_clean.git 2>/dev/null || true
+git remote set-url clean https://github.com/Leoname/hifiberry_tidal_clean.git
+
+# Pull latest changes
+git pull clean master
 ```
 
 ### 2. Update the Systemd Service
@@ -91,11 +108,16 @@ cd /data/tidal-connect-docker
 
 To keep your system up to date with the latest fixes:
 
+**Easy way:**
 ```bash
-# On your HiFiBerry
 cd /data/tidal-connect-docker
+./sync-from-github.sh
+./reset-tidal-gio.sh
+```
 
-# Pull latest changes
+**Manual way:**
+```bash
+cd /data/tidal-connect-docker
 git pull clean master
 
 # Check if systemd service needs updating
