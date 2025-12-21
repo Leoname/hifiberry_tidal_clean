@@ -1,8 +1,35 @@
-# Tidal Connect for HiFiBerry
+# Tidal Connect for HiFiBerry - Clean Implementation
 
 A clean, actively maintained Tidal Connect setup for HiFiBerry devices using [GioF71's tidal-connect](https://github.com/GioF71/tidal-connect).
 
 ![hifiberry_sources](img/hifiberry_listsources.png?raw=true)
+
+## Why This Fork?
+
+This repository provides a **clean, simplified implementation** focused on the **GioF71/tidal-connect** setup, which solves the TLS compatibility issues that plagued earlier implementations.
+
+### Background: TLS Errors and the Solution
+
+**The Problem:**
+- Original Docker images (e.g., `edgecrush3r/tidal-connect`) used outdated SSL libraries (OpenSSL 1.0.1t from 2019)
+- Tidal's servers updated their TLS requirements, causing handshake failures
+- Error: `[error] handle_transport_init received error: TLS handshake failed`
+- The proprietary Tidal Connect binary was compiled against ancient dependencies, making updates difficult
+
+**The Solution:**
+- **GioF71/tidal-connect**: Uses a modern Debian base image with up-to-date SSL libraries
+- Better ALSA integration and audio device handling
+- Actively maintained (last updated December 2024)
+- Handles mDNS registration more reliably
+- Cleaner Docker setup without custom builds
+
+**What This Repository Provides:**
+- Automated installation script for HiFiBerry devices
+- Volume bridge for phone volume control and metadata export
+- AudioControl2 integration for HiFiBerry UI
+- mDNS collision prevention (permanent fix)
+- Diagnostic tools and reset scripts
+- Clean separation from legacy code
 
 ## Features
 
@@ -13,6 +40,7 @@ A clean, actively maintained Tidal Connect setup for HiFiBerry devices using [Gi
 - ✅ **mDNS Collision Prevention** - Automatic handling of mDNS registration to prevent discovery issues
 - ✅ **Auto-start on Boot** - Systemd service ensures Tidal Connect starts automatically
 - ✅ **Radio Stream Support** - Works alongside MPD and other audio players without conflicts
+- ✅ **TLS Compatible** - Uses modern SSL libraries compatible with current Tidal servers
 
 ## Quick Start
 
@@ -29,10 +57,11 @@ cd tidal-connect-docker
 ```
 
 The installer will:
-- Clone GioF71's tidal-connect repository
+- Clone GioF71's tidal-connect repository to `/data/tidal-connect`
 - Configure it for HiFiBerry DAC+
 - Set up systemd services (`tidal-gio.service`, `tidal-volume-bridge.service`)
 - Configure AudioControl2 integration (if available)
+- Set up mDNS collision prevention
 
 **After installation, test with a reboot:**
 ```bash
@@ -183,7 +212,7 @@ See `work-in-progress/audiocontrol2/README.md` for detailed instructions.
 ## Credits
 
 - Based on [GioF71/tidal-connect](https://github.com/GioF71/tidal-connect) - Actively maintained Tidal Connect implementation
-- Original work by [TonyTromp/tidal-connect-docker](https://github.com/TonyTromp/tidal-connect-docker)
+- Original Docker port by [TonyTromp/tidal-connect-docker](https://github.com/TonyTromp/tidal-connect-docker)
 - Tidal Connect binary from iFi Audio
 
 ## License
