@@ -136,8 +136,19 @@ while true; do
     if systemctl is-active --quiet mpd 2>/dev/null; then
         MPD_STATE=$(mpc status 2>/dev/null | head -1 | grep -oE '\[playing\]|\[paused\]' || echo "")
         if [ -n "$MPD_STATE" ] && [ "$MPD_STATE" = "[playing]" ]; then
-            # MPD is playing - stop Tidal if it's not IDLE and remove status file
-            if [ "$STATE" != "IDLE" ] && [ "$STATE" != "STOPPED" ]; then
+            # MPD is playing - if Tidal is PAUSED, it's holding the ALSA device
+            # The 'P' key only toggles pause/play, doesn't stop to IDLE
+            # We need to restart the container to release the ALSA device
+            if [ "$STATE" = "PAUSED" ]; then
+                echo "[$(date '+%H:%M:%S')] MPD is playing but Tidal is PAUSED (holding ALSA device)"
+                echo "[$(date '+%H:%M:%S')] Restarting Tidal container to release ALSA device..."
+                systemctl restart tidal-gio.service
+                sleep 3  # Wait for container to restart
+                echo "[$(date '+%H:%M:%S')] Tidal container restarted, ALSA device should be free"
+                PREV_HASH=""  # Force update on next cycle
+                continue  # Skip to next iteration
+            elif [ "$STATE" != "IDLE" ] && [ "$STATE" != "STOPPED" ]; then
+                # Tidal is PLAYING or BUFFERING - try to stop it first
                 echo "[$(date '+%H:%M:%S')] MPD is playing, stopping Tidal..."
                 docker exec "$CONTAINER_NAME" /usr/bin/tmux send-keys -t speaker_controller_application 'P' 2>/dev/null || true
                 sleep 0.5
