@@ -67,14 +67,7 @@ class TidalControl(PlayerControl):
         self.status_file = "/tmp/tidal-status.json"
         self.last_status = {}
         self.container_name = None  # Will be detected dynamically
-        
-        # Check if Tidal is available - either status file exists or container is running
-        if os.path.exists(self.status_file):
-            self.is_active_player = True
-        else:
-            # Fallback: check if container is running
-            self.container_name = self._detect_container_name()
-            self.is_active_player = (self.container_name is not None)
+        self.is_active_player = False  # Start as inactive, let _update_status() determine actual state
     
     def _detect_container_name(self):
         """Detect which Tidal container is running (tidal-connect or tidal_connect)"""
