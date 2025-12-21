@@ -131,12 +131,19 @@ while true; do
     # Create status hash to detect changes
     STATUS_HASH="${STATE}|${ARTIST}|${TITLE}|${ALBUM}|${POSITION}|${VOLUME}"
     
-    # Check if MPD is playing - if so, ensure Tidal status file is removed
+    # Check if MPD is playing - if so, stop Tidal and remove status file
     # This prevents Tidal from interfering with radio/MPD playback
     if systemctl is-active --quiet mpd 2>/dev/null; then
         MPD_STATE=$(mpc status 2>/dev/null | head -1 | grep -oE '\[playing\]|\[paused\]' || echo "")
         if [ -n "$MPD_STATE" ] && [ "$MPD_STATE" = "[playing]" ]; then
-            # MPD is playing - ensure Tidal status file is removed
+            # MPD is playing - stop Tidal if it's not IDLE and remove status file
+            if [ "$STATE" != "IDLE" ] && [ "$STATE" != "STOPPED" ]; then
+                echo "[$(date '+%H:%M:%S')] MPD is playing, stopping Tidal..."
+                docker exec "$CONTAINER_NAME" /usr/bin/tmux send-keys -t speaker_controller_application 'P' 2>/dev/null || true
+                sleep 0.5
+                docker exec "$CONTAINER_NAME" /usr/bin/tmux send-keys -t speaker_controller_application 'P' 2>/dev/null || true
+            fi
+            # Always remove status file when MPD is playing
             if [ -f "$STATUS_FILE" ]; then
                 rm -f "$STATUS_FILE"
                 echo "[$(date '+%H:%M:%S')] MPD is playing, removed Tidal status file"
