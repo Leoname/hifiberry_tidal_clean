@@ -149,14 +149,15 @@ while true; do
     fi
     
     # Export metadata to JSON file if anything changed
-    # Only write file when Tidal is actually playing (not IDLE)
-    # This prevents AudioControl2 from thinking Tidal is active when it's idle
+    # Only write file when Tidal is actually playing (not IDLE/PAUSED/STOPPED)
+    # PAUSED still holds the ALSA device, preventing MPD/radio from playing
+    # This prevents AudioControl2 from thinking Tidal is active when it's idle or paused
     if [ "$STATUS_HASH" != "$PREV_HASH" ]; then
-        if [ "$STATE" = "IDLE" ] || [ "$STATE" = "STOPPED" ]; then
-            # Remove status file when Tidal is idle - prevents plugin from thinking it's active
+        if [ "$STATE" = "IDLE" ] || [ "$STATE" = "STOPPED" ] || [ "$STATE" = "PAUSED" ]; then
+            # Remove status file when Tidal is idle/paused - prevents plugin from thinking it's active
             if [ -f "$STATUS_FILE" ]; then
                 rm -f "$STATUS_FILE"
-                echo "[$(date '+%H:%M:%S')] Tidal idle, removed status file"
+                echo "[$(date '+%H:%M:%S')] Tidal $STATE, removed status file"
             fi
         else
             # Get current timestamp

@@ -117,12 +117,13 @@ class TidalControl(PlayerControl):
             self.last_status = status
             self.state = status.get('state', 'IDLE')
             
-            # Only mark as active if actually playing (not IDLE/STOPPED)
+            # Only mark as active if actually playing (not PAUSED/IDLE/STOPPED)
+            # PAUSED still holds the ALSA device, preventing MPD/radio from playing
             # This ensures UI controls go to the correct player (MPD when radio is playing)
-            if self.state in ['PLAYING', 'PAUSED', 'BUFFERING']:
+            if self.state in ['PLAYING', 'BUFFERING']:
                 self.is_active_player = True
             else:
-                # IDLE or STOPPED - don't interfere with other players
+                # PAUSED, IDLE, or STOPPED - don't interfere with other players
                 self.is_active_player = False
             
             # Update metadata
