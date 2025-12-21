@@ -131,6 +131,20 @@ while true; do
     # Create status hash to detect changes
     STATUS_HASH="${STATE}|${ARTIST}|${TITLE}|${ALBUM}|${POSITION}|${VOLUME}"
     
+    # Check if MPD is playing - if so, ensure Tidal status file is removed
+    # This prevents Tidal from interfering with radio/MPD playback
+    if systemctl is-active --quiet mpd 2>/dev/null; then
+        MPD_STATE=$(mpc status 2>/dev/null | head -1 | grep -oE '\[playing\]|\[paused\]' || echo "")
+        if [ -n "$MPD_STATE" ] && [ "$MPD_STATE" = "[playing]" ]; then
+            # MPD is playing - ensure Tidal status file is removed
+            if [ -f "$STATUS_FILE" ]; then
+                rm -f "$STATUS_FILE"
+                echo "[$(date '+%H:%M:%S')] MPD is playing, removed Tidal status file"
+                PREV_HASH=""  # Force update on next cycle
+            fi
+        fi
+    fi
+    
     # Update ALSA volume if changed
     if [ "$VOLUME" != "$PREV_VOLUME" ] && [ -n "$VOLUME" ] && [ "$VOLUME" -ge 0 ]; then
         # Map volume: speaker controller shows 0-38 # symbols
