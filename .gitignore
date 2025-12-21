@@ -1,3 +1,26 @@
-Docker/.env
-Docker/docker-compose.yml
-./CONFIG
+# Environment files
+.env
+*.env
+CONFIG
+
+# Local configuration
+/data/tidal-connect/.env
+
+# Logs
+*.log
+/var/log/tidal-*.log
+
+# Temporary files
+*.tmp
+*.bak
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo

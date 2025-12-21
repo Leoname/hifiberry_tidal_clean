@@ -13,9 +13,15 @@ echo "Monitoring speaker controller and syncing to ALSA mixer: $ALSA_MIXER"
 echo "Exporting metadata to: $STATUS_FILE"
 
 # Function to check if container is ready
+# Support both container names (legacy and GioF71)
 is_container_ready() {
-    docker ps | grep -q tidal_connect && \
-    docker exec tidal_connect pgrep -f "speaker_controller_application" >/dev/null 2>&1
+    if docker ps | grep -q "tidal-connect"; then
+        docker exec tidal-connect pgrep -f "speaker_controller_application" >/dev/null 2>&1
+    elif docker ps | grep -q "tidal_connect"; then
+        docker exec tidal_connect pgrep -f "speaker_controller_application" >/dev/null 2>&1
+    else
+        return 1
+    fi
 }
 
 # Function to wait for container with retry logic
@@ -77,8 +83,18 @@ while true; do
         CONSECUTIVE_ERRORS=0
     fi
     
+    # Determine container name
+    if docker ps | grep -q "tidal-connect"; then
+        CONTAINER_NAME="tidal-connect"
+    elif docker ps | grep -q "tidal_connect"; then
+        CONTAINER_NAME="tidal_connect"
+    else
+        sleep 0.5
+        continue
+    fi
+    
     # Capture tmux output from speaker_controller_application
-    TMUX_OUTPUT=$(docker exec -t tidal_connect /usr/bin/tmux capture-pane -pS -50 2>/dev/null | tr -d '\r')
+    TMUX_OUTPUT=$(docker exec -t "$CONTAINER_NAME" /usr/bin/tmux capture-pane -pS -50 2>/dev/null | tr -d '\r')
     
     if [ -z "$TMUX_OUTPUT" ]; then
         sleep 0.5
@@ -127,7 +143,7 @@ while true; do
         fi
         
         echo "[$(date '+%H:%M:%S')] Volume changed: $VOLUME/38 -> Setting ALSA $ALSA_MIXER to $ALSA_VALUE/207"
-        docker exec tidal_connect amixer set "$ALSA_MIXER" "$ALSA_VALUE" > /dev/null 2>&1
+        docker exec "$CONTAINER_NAME" amixer set "$ALSA_MIXER" "$ALSA_VALUE" > /dev/null 2>&1
         
         PREV_VOLUME=$VOLUME
     fi

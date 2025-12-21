@@ -3,6 +3,17 @@
 # start/stop script for running the Speaker Controller Application
 # This application enables controlling Tidal from the mobile device (Volume,Start/Stop,Next/Prev etc)
 
+# Detect container name (support both tidal-connect and tidal_connect)
+detect_container() {
+  if docker ps | grep -q "tidal-connect"; then
+    echo "tidal-connect"
+  elif docker ps | grep -q "tidal_connect"; then
+    echo "tidal_connect"
+  else
+    echo ""
+  fi
+}
+
 function start() {
   # Stop if already running
   if pgrep -f ^/app/ifi-tidal-release/bin/speaker_controller_application >/dev/null 2>&1
@@ -11,14 +22,26 @@ function start() {
     stop
   fi
 
+  CONTAINER=$(detect_container)
+  if [ -z "$CONTAINER" ]; then
+    echo "ERROR: Tidal Connect container not found"
+    exit 1
+  fi
+
   echo "Starting Speaker Controller Application..."
-  docker exec -ti tidal_connect /usr/bin/tmux new-session -d -s speaker_controller_application '/app/ifi-tidal-release/bin/speaker_controller_application'
+  docker exec -ti "$CONTAINER" /usr/bin/tmux new-session -d -s speaker_controller_application '/app/ifi-tidal-release/bin/speaker_controller_application'
 }
 
 
 function stop() {
+  CONTAINER=$(detect_container)
+  if [ -z "$CONTAINER" ]; then
+    echo "ERROR: Tidal Connect container not found"
+    exit 1
+  fi
+
   echo "Stopping Speaker Controller Application..."
-  docker exec -ti tidal_connect /usr/bin/tmux kill-session -t speaker_controller_application
+  docker exec -ti "$CONTAINER" /usr/bin/tmux kill-session -t speaker_controller_application
 }
 
 

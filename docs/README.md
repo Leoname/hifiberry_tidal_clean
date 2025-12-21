@@ -8,103 +8,77 @@ See the main [README.md](../README.md) for installation and basic usage.
 
 ## Documentation Index
 
-### Problem Solving
-- **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Common issues and solutions
-  - Device not appearing in TIDAL app
-  - mDNS collision errors
-  - Service failures
-  - Complete diagnostic procedures
-
-### Technical Deep Dives
-- **[MDNS_COLLISION_FIX.md](MDNS_COLLISION_FIX.md)** - Root cause analysis of mDNS collision issue
-  - Why the service was colliding with itself
-  - Evolution of the solution from fixed delays to state verification
-  - Testing and verification procedures
-
-- **[ARCHITECTURE.md](ARCHITECTURE.md)** - System architecture and design
-  - Component overview
-  - Defensive programming principles
-  - Race condition handling
-  - Failure scenarios and recovery
-  - Configuration tuning guide
-
-- **[DEFENSIVE_DESIGN_SUMMARY.md](DEFENSIVE_DESIGN_SUMMARY.md)** - Why state verification over fixed delays
-  - Problem with brittle timers
-  - Comparison of old vs new approaches
-  - Performance characteristics
-  - Testing commands
-
-### Feature Documentation
-- **[WATCHDOG.md](WATCHDOG.md)** - Connection watchdog system
-  - Auto-recovery from token expiration
-  - Error detection logic
-  - Manual testing procedures
-
 ### Change History
 - **[CHANGELOG.md](CHANGELOG.md)** - All changes and version history
 
 ---
 
-## Document Purpose Guide
+## Architecture
 
-| Need to... | Read this |
-|------------|-----------|
-| Fix an issue | [TROUBLESHOOTING.md](TROUBLESHOOTING.md) |
-| Understand mDNS collision | [MDNS_COLLISION_FIX.md](MDNS_COLLISION_FIX.md) |
-| Understand system design | [ARCHITECTURE.md](ARCHITECTURE.md) |
-| Understand why no fixed delays | [DEFENSIVE_DESIGN_SUMMARY.md](DEFENSIVE_DESIGN_SUMMARY.md) |
-| Learn about auto-recovery | [WATCHDOG.md](WATCHDOG.md) |
-| See what changed | [CHANGELOG.md](CHANGELOG.md) |
+### Current Setup (GioF71)
 
----
+The current implementation uses [GioF71's tidal-connect](https://github.com/GioF71/tidal-connect), which is actively maintained and handles audio device setup more reliably than the legacy Docker build approach.
 
-## Development
+**Components:**
+- **GioF71/tidal-connect**: Main Tidal Connect Docker container (uses `edgecrush3r/tidal-connect:latest` image)
+- **tidal-gio.service**: Systemd service managing the Docker container
+- **volume-bridge.sh**: Syncs phone volume to ALSA mixer and exports metadata for AudioControl2
+- **tidal-volume-bridge.service**: Systemd service for volume bridge
+- **tidalcontrol.py**: AudioControl2 plugin for UI integration (optional)
 
-### Key Components
+### Key Scripts
 
-**Scripts** (in project root):
-- `install_hifiberry.sh` - Main installation script
-- `check-tidal-status.sh` - Diagnostic tool
-- `fix-name-collision.sh` - Helper for name conflicts
-- `tidal-watchdog.sh` - Auto-recovery service
-- `volume-bridge.sh` - Volume/metadata sync
-- `wait-for-*.sh` - State verification helpers
+**Installation & Management:**
+- `install-tidal-gio.sh` - Main installer for GioF71 setup
+- `reset-tidal-gio.sh` - Reset/troubleshooting script
+- `switch-to-gio.sh` - Migration script from legacy setup
+- `check-tidal-status.sh` - Diagnostic script
 
-**Service Templates** (`templates/`):
-- `tidal.service.tpl` - Main service definition
-- `tidal-watchdog.service.tpl` - Watchdog service
-- `tidal-volume-bridge.service.tpl` - Volume bridge service
-
-**Container** (`Docker/`):
-- `Dockerfile` - Container image definition
-- `entrypoint.sh` - Container startup script
-- `src/` - Binaries and certificates
-
-### Testing Checklist
-
-See [ARCHITECTURE.md](ARCHITECTURE.md#testing-checklist) for complete testing procedures.
+**Integration:**
+- `volume-bridge.sh` - Volume sync and metadata export
+- `speaker-controller-service` - Speaker controller management
+- `work-in-progress/audiocontrol2/tidalcontrol.py` - AudioControl2 player plugin
 
 ---
 
-## Contributing
+## Troubleshooting
 
-When adding features:
-1. Follow defensive programming principles (see [ARCHITECTURE.md](ARCHITECTURE.md))
-2. Add retry logic with timeouts, not fixed delays
-3. Verify state transitions explicitly
-4. Update relevant documentation
-5. Test all failure scenarios
+### Device Not Appearing
+
+1. Run diagnostics:
+   ```bash
+   ./check-tidal-status.sh
+   ```
+
+2. Check mDNS:
+   ```bash
+   avahi-browse -t _tidalconnect._tcp -r
+   ```
+
+3. Reset everything:
+   ```bash
+   ./reset-tidal-gio.sh
+   ```
+
+### mDNS Collision
+
+The service is configured to prevent mDNS collisions automatically. If you see collision errors, the reset script will clear them.
+
+### Radio/MPD Controls
+
+The AudioControl2 integration only activates when Tidal is actually playing, so it won't interfere with MPD or other players.
 
 ---
 
 ## Getting Help
 
 1. Run diagnostics: `./check-tidal-status.sh`
-2. Check [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
-3. Review logs:
+2. Check container logs:
    ```bash
-   docker logs tidal_connect --tail 50
-   journalctl -u tidal-watchdog -n 50
-   tail -50 /var/log/tidal-watchdog.log
+   cd /data/tidal-connect && docker-compose logs -f
    ```
-
+3. Check service status:
+   ```bash
+   systemctl status tidal-gio.service
+   systemctl status tidal-volume-bridge.service
+   ```

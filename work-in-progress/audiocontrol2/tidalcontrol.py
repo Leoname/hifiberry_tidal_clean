@@ -66,18 +66,33 @@ class TidalControl(PlayerControl):
         self.playername = "Tidal"
         self.status_file = "/tmp/tidal-status.json"
         self.last_status = {}
+        self.container_name = None  # Will be detected dynamically
         
         # Check if Tidal is available - either status file exists or container is running
         if os.path.exists(self.status_file):
             self.is_active_player = True
         else:
             # Fallback: check if container is running
-            try:
-                result = subprocess.run(['docker', 'ps', '-q', '-f', 'name=tidal_connect'], 
-                                      capture_output=True, text=True, timeout=2)
-                self.is_active_player = (result.returncode == 0 and result.stdout.strip() != "")
-            except:
-                self.is_active_player = False
+            self.container_name = self._detect_container_name()
+            self.is_active_player = (self.container_name is not None)
+    
+    def _detect_container_name(self):
+        """Detect which Tidal container is running (tidal-connect or tidal_connect)"""
+        try:
+            # Check for GioF71 setup (tidal-connect with hyphen)
+            result = subprocess.run(['docker', 'ps', '-q', '-f', 'name=tidal-connect'], 
+                                  capture_output=True, text=True, timeout=2)
+            if result.returncode == 0 and result.stdout.strip():
+                return 'tidal-connect'
+            
+            # Check for legacy setup (tidal_connect with underscore)
+            result = subprocess.run(['docker', 'ps', '-q', '-f', 'name=tidal_connect'], 
+                                  capture_output=True, text=True, timeout=2)
+            if result.returncode == 0 and result.stdout.strip():
+                return 'tidal_connect'
+        except:
+            pass
+        return None
 
         
     def start(self):
@@ -92,32 +107,30 @@ class TidalControl(PlayerControl):
                 self.is_active_player = False
                 return
             
-            # Check if file is recent (updated within last 30 seconds)
-            # This allows Tidal to show up even when idle, as long as the service is running
+            # Check if file is recent (updated within last 10 seconds)
+            # Only mark as active if Tidal is actually playing, not just when container is running
             mtime = os.path.getmtime(self.status_file)
-            if time() - mtime > 30:
-                # File is stale - check if container is running as fallback
-                try:
-                    result = subprocess.run(['docker', 'ps', '-q', '-f', 'name=tidal_connect'], 
-                                          capture_output=True, text=True, timeout=2)
-                    if result.returncode == 0 and result.stdout.strip():
-                        # Container is running, keep player active but mark as stopped
-                        self.is_active_player = True
-                        self.state = TIDAL_STATE_STOPPED
-                        return
-                    else:
-                        self.is_active_player = False
-                        return
-                except:
-                    self.is_active_player = False
-                    return
+            if time() - mtime > 10:
+                # File is stale - Tidal is not actively playing
+                # Don't mark as active just because container is running
+                # This prevents UI controls from being routed to Tidal when MPD/other players are active
+                self.is_active_player = False
+                self.state = TIDAL_STATE_STOPPED
+                return
             
             with open(self.status_file, 'r') as f:
                 status = json.load(f)
             
             self.last_status = status
             self.state = status.get('state', 'IDLE')
-            self.is_active_player = True
+            
+            # Only mark as active if actually playing (not IDLE/STOPPED)
+            # This ensures UI controls go to the correct player (MPD when radio is playing)
+            if self.state in ['PLAYING', 'PAUSED', 'BUFFERING']:
+                self.is_active_player = True
+            else:
+                # IDLE or STOPPED - don't interfere with other players
+                self.is_active_player = False
             
             # Update metadata
             md = Metadata()
@@ -140,7 +153,7 @@ class TidalControl(PlayerControl):
     def get_supported_commands(self):
         logging.info('tidalcontrol::get_supported_commands')
         # Note: Commands are handled by phone app, not directly controllable
-        return [CMD_NEXT, CMD_PREV, CMD_PAUSE, CMD_PLAYPAUSE, CMD_PLAY]
+        return [CMD_NEXT, CMD_PREV, CMD_PAUSE, CMD_PLAYPAUSE, CMD_PLAY, CMD_STOP]
 
 
 
@@ -169,17 +182,27 @@ class TidalControl(PlayerControl):
             logging.warning(f'tidalcontrol: unsupported command {command}')
             return False
         
+        # Detect container name if not already known
+        if self.container_name is None:
+            self.container_name = self._detect_container_name()
+        
+        if self.container_name is None:
+            logging.error('tidalcontrol: No container found, cannot send command')
+            return False
+        
         # Commands are sent to the speaker_controller via tmux
         # Map AC2 commands to speaker_controller key presses
         try:
             if command == CMD_NEXT:
-                subprocess.run(['docker', 'exec', 'tidal_connect', 'tmux', 'send-keys', '-t', 
+                subprocess.run(['docker', 'exec', self.container_name, 'tmux', 'send-keys', '-t', 
                                'speaker_controller_application', 'L'], check=True)
             elif command == CMD_PREV:
-                subprocess.run(['docker', 'exec', 'tidal_connect', 'tmux', 'send-keys', '-t', 
+                subprocess.run(['docker', 'exec', self.container_name, 'tmux', 'send-keys', '-t', 
                                'speaker_controller_application', 'K'], check=True)
-            elif command in [CMD_PAUSE, CMD_PLAYPAUSE, CMD_PLAY]:
-                subprocess.run(['docker', 'exec', 'tidal_connect', 'tmux', 'send-keys', '-t', 
+            elif command in [CMD_PAUSE, CMD_PLAYPAUSE, CMD_PLAY, CMD_STOP]:
+                # Pause/Play/Stop all use 'P' key in speaker_controller
+                # For radio streams, pause effectively stops playback
+                subprocess.run(['docker', 'exec', self.container_name, 'tmux', 'send-keys', '-t', 
                                'speaker_controller_application', 'P'], check=True)
             else:
                 logging.warning(f'tidalcontrol: command {command} not implemented')
@@ -198,16 +221,11 @@ class TidalControl(PlayerControl):
         # Always update status to get current state
         self._update_status()
         
-        # If still not active, double-check container as fallback
+        # Don't mark as active just because container is running
+        # Only be active when actually playing - this prevents UI controls from being
+        # routed to Tidal when MPD or other players are active
         if not self.is_active_player:
-            try:
-                result = subprocess.run(['docker', 'ps', '-q', '-f', 'name=tidal_connect'], 
-                                      capture_output=True, text=True, timeout=2)
-                if result.returncode == 0 and result.stdout.strip():
-                    self.is_active_player = True
-                    logging.info('tidalcontrol: Container is running, marking player as active')
-            except Exception as e:
-                logging.debug(f'tidalcontrol: Error checking container: {e}')
+            logging.debug('tidalcontrol: Not active - Tidal is not currently playing')
         
         return self.is_active_player
     
