@@ -46,16 +46,29 @@ else
         # Check current branch
         CURRENT_BRANCH=$(git branch --show-current 2>/dev/null || echo "master")
         
-        # Stash any local changes
+        # Check for local changes (tracked and untracked)
+        HAS_CHANGES=0
         if ! git diff-index --quiet HEAD -- 2>/dev/null; then
-            echo "Warning: You have uncommitted changes. Stashing..."
-            git stash
+            HAS_CHANGES=1
+        fi
+        if [ -n "$(git ls-files --others --exclude-standard)" ]; then
+            HAS_CHANGES=1
+        fi
+        
+        # Stash any local changes (including untracked files)
+        if [ "$HAS_CHANGES" = "1" ]; then
+            echo "Warning: You have local changes. Backing them up..."
+            git stash push --include-untracked -m "Local changes before sync $(date +%Y%m%d_%H%M%S)" 2>/dev/null || {
+                echo "Stash failed, forcing reset to match GitHub..."
+                git reset --hard clean/master 2>/dev/null || true
+                git clean -fd 2>/dev/null || true
+            }
             STASHED=1
         fi
         
         # Pull latest
         echo "Pulling latest changes..."
-        git pull clean master || git reset --hard clean/master
+        git pull clean master 2>/dev/null || git reset --hard clean/master
         
         # Restore stashed changes if any
         if [ "$STASHED" = "1" ]; then
