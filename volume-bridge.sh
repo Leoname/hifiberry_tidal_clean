@@ -97,6 +97,20 @@ while true; do
     TMUX_OUTPUT=$(docker exec -t "$CONTAINER_NAME" /usr/bin/tmux capture-pane -pS -50 2>/dev/null | tr -d '\r')
     
     if [ -z "$TMUX_OUTPUT" ]; then
+        # Container might be restarting - remove status file if it exists
+        if [ -f "$STATUS_FILE" ]; then
+            rm -f "$STATUS_FILE"
+        fi
+        sleep 0.5
+        continue
+    fi
+    
+    # Check if container is in a valid state (not just starting up)
+    # If we can't parse a valid state, skip this cycle
+    STATE_CHECK=$(echo "$TMUX_OUTPUT" | grep -o 'PlaybackState::[A-Z]*' | cut -d: -f3)
+    if [ -z "$STATE_CHECK" ] && [ -f "$STATUS_FILE" ]; then
+        # Container might be restarting - remove stale status file
+        rm -f "$STATUS_FILE"
         sleep 0.5
         continue
     fi
@@ -144,11 +158,17 @@ while true; do
         if [ "$MPD_STATE" = "[playing]" ] || ([ "$MPD_HAS_TRACK" = "yes" ] && [ "$MPD_ERROR" = "yes" ]); then
             if [ "$STATE" = "PAUSED" ]; then
                 echo "[$(date '+%H:%M:%S')] MPD wants to play but Tidal is PAUSED (holding ALSA device)"
+                # Remove status file immediately to prevent stale metadata
+                if [ -f "$STATUS_FILE" ]; then
+                    rm -f "$STATUS_FILE"
+                    echo "[$(date '+%H:%M:%S')] Removed Tidal status file before restart"
+                fi
                 echo "[$(date '+%H:%M:%S')] Restarting Tidal container to release ALSA device..."
                 systemctl restart tidal-gio.service
                 sleep 3  # Wait for container to restart
                 echo "[$(date '+%H:%M:%S')] Tidal container restarted, ALSA device should be free"
                 PREV_HASH=""  # Force update on next cycle
+                # Skip metadata export for this cycle - container is restarting
                 continue  # Skip to next iteration
             elif [ "$STATE" != "IDLE" ] && [ "$STATE" != "STOPPED" ]; then
                 # Tidal is PLAYING or BUFFERING - try to stop it first
