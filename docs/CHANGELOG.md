@@ -15,9 +15,9 @@
 - **Volume bridge**: Updated to work with new container name
 
 ### Added
-- `switch-to-gio.sh` - Migration script from legacy setup
 - `check-tidal-status.sh` - Enhanced diagnostic script with auto-detection
 - Improved mDNS collision handling in reset script
+- `sync-from-github.sh` - Easy sync script for keeping HiFiBerry updated
 
 ### Removed
 - Legacy Docker build system (`Docker/` directory)

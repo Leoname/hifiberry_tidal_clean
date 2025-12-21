@@ -31,8 +31,8 @@ The current implementation uses [GioF71's tidal-connect](https://github.com/GioF
 **Installation & Management:**
 - `install-tidal-gio.sh` - Main installer for GioF71 setup
 - `reset-tidal-gio.sh` - Reset/troubleshooting script
-- `switch-to-gio.sh` - Migration script from legacy setup
 - `check-tidal-status.sh` - Diagnostic script
+- `sync-from-github.sh` - Sync script for keeping system updated
 
 **Integration:**
 - `volume-bridge.sh` - Volume sync and metadata export
