@@ -73,7 +73,17 @@ else
         # Restore stashed changes if any
         if [ "$STASHED" = "1" ]; then
             echo "Restoring stashed changes..."
-            git stash pop 2>/dev/null || true
+            if ! git stash pop 2>/dev/null; then
+                echo "Merge conflicts detected. Resolving by accepting GitHub version..."
+                # Accept GitHub version for all conflicts
+                git checkout --theirs . 2>/dev/null || true
+                git add -A 2>/dev/null || true
+                # Remove files that were deleted upstream
+                git rm Docker/CONFIG Docker/entrypoint.sh tidal-watchdog.sh 2>/dev/null || true
+                # Drop the stash since we've resolved conflicts
+                git stash drop 2>/dev/null || true
+                echo "Conflicts resolved. Using GitHub version."
+            fi
         fi
     fi
 fi
