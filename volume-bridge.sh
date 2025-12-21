@@ -153,9 +153,28 @@ while true; do
         MPD_HAS_TRACK=$(echo "$MPD_STATUS" | grep -v "^volume:" | grep -v "^ERROR:" | head -1 | grep -q "http://\|file://" && echo "yes" || echo "no")
         MPD_ERROR=$(echo "$MPD_STATUS" | grep -q "Device or resource busy" && echo "yes" || echo "no")
         
-        # If MPD is playing OR has a track queued (even if paused) and Tidal is PAUSED, restart Tidal
-        # This releases the ALSA device so MPD can play
-        if [ "$MPD_STATE" = "[playing]" ] || ([ "$MPD_HAS_TRACK" = "yes" ] && [ "$MPD_ERROR" = "yes" ]); then
+        # If MPD is playing, ensure Tidal doesn't interfere and remove its status file
+        # This prevents stale Tidal metadata from showing when radio is playing
+        if [ "$MPD_STATE" = "[playing]" ]; then
+            # MPD is actively playing - remove Tidal status file to prevent metadata confusion
+            if [ -f "$STATUS_FILE" ]; then
+                rm -f "$STATUS_FILE"
+                echo "[$(date '+%H:%M:%S')] MPD is playing, removed Tidal status file"
+                PREV_HASH=""  # Force update on next cycle
+            fi
+            
+            # If Tidal is PAUSED and holding the device, restart it (shouldn't happen if already restarted)
+            if [ "$STATE" = "PAUSED" ]; then
+                echo "[$(date '+%H:%M:%S')] MPD is playing but Tidal is PAUSED (holding ALSA device)"
+                echo "[$(date '+%H:%M:%S')] Restarting Tidal container to release ALSA device..."
+                systemctl restart tidal-gio.service
+                sleep 3  # Wait for container to restart
+                echo "[$(date '+%H:%M:%S')] Tidal container restarted, ALSA device should be free"
+                PREV_HASH=""  # Force update on next cycle
+                continue  # Skip to next iteration
+            fi
+        # If MPD has a track queued but can't play due to device busy, restart Tidal
+        elif [ "$MPD_HAS_TRACK" = "yes" ] && [ "$MPD_ERROR" = "yes" ]; then
             if [ "$STATE" = "PAUSED" ]; then
                 echo "[$(date '+%H:%M:%S')] MPD wants to play but Tidal is PAUSED (holding ALSA device)"
                 # Remove status file immediately to prevent stale metadata
@@ -168,7 +187,6 @@ while true; do
                 sleep 3  # Wait for container to restart
                 echo "[$(date '+%H:%M:%S')] Tidal container restarted, ALSA device should be free"
                 PREV_HASH=""  # Force update on next cycle
-                # Skip metadata export for this cycle - container is restarting
                 continue  # Skip to next iteration
             elif [ "$STATE" != "IDLE" ] && [ "$STATE" != "STOPPED" ]; then
                 # Tidal is PLAYING or BUFFERING - try to stop it first
@@ -176,12 +194,12 @@ while true; do
                 docker exec "$CONTAINER_NAME" /usr/bin/tmux send-keys -t speaker_controller_application 'P' 2>/dev/null || true
                 sleep 0.5
                 docker exec "$CONTAINER_NAME" /usr/bin/tmux send-keys -t speaker_controller_application 'P' 2>/dev/null || true
-            fi
-            # Always remove status file when MPD wants to play
-            if [ -f "$STATUS_FILE" ]; then
-                rm -f "$STATUS_FILE"
-                echo "[$(date '+%H:%M:%S')] MPD wants to play, removed Tidal status file"
-                PREV_HASH=""  # Force update on next cycle
+                # Remove status file
+                if [ -f "$STATUS_FILE" ]; then
+                    rm -f "$STATUS_FILE"
+                    echo "[$(date '+%H:%M:%S')] MPD wants to play, removed Tidal status file"
+                    PREV_HASH=""  # Force update on next cycle
+                fi
             fi
         fi
     fi
