@@ -149,17 +149,26 @@ while true; do
     fi
     
     # Export metadata to JSON file if anything changed
+    # Only write file when Tidal is actually playing (not IDLE)
+    # This prevents AudioControl2 from thinking Tidal is active when it's idle
     if [ "$STATUS_HASH" != "$PREV_HASH" ]; then
-        # Get current timestamp
-        TIMESTAMP=$(date +%s)
-        
-        # Escape quotes in strings for JSON
-        ARTIST_JSON=$(echo "$ARTIST" | sed 's/"/\\"/g')
-        TITLE_JSON=$(echo "$TITLE" | sed 's/"/\\"/g')
-        ALBUM_JSON=$(echo "$ALBUM" | sed 's/"/\\"/g')
-        
-        # Write JSON status file (atomic write via temp file)
-        cat > "${STATUS_FILE}.tmp" <<EOF
+        if [ "$STATE" = "IDLE" ] || [ "$STATE" = "STOPPED" ]; then
+            # Remove status file when Tidal is idle - prevents plugin from thinking it's active
+            if [ -f "$STATUS_FILE" ]; then
+                rm -f "$STATUS_FILE"
+                echo "[$(date '+%H:%M:%S')] Tidal idle, removed status file"
+            fi
+        else
+            # Get current timestamp
+            TIMESTAMP=$(date +%s)
+            
+            # Escape quotes in strings for JSON
+            ARTIST_JSON=$(echo "$ARTIST" | sed 's/"/\\"/g')
+            TITLE_JSON=$(echo "$TITLE" | sed 's/"/\\"/g')
+            ALBUM_JSON=$(echo "$ALBUM" | sed 's/"/\\"/g')
+            
+            # Write JSON status file (atomic write via temp file)
+            cat > "${STATUS_FILE}.tmp" <<EOF
 {
   "state": "$STATE",
   "artist": "$ARTIST_JSON",
@@ -172,9 +181,11 @@ while true; do
   "timestamp": $TIMESTAMP
 }
 EOF
-        mv "${STATUS_FILE}.tmp" "$STATUS_FILE"
+            mv "${STATUS_FILE}.tmp" "$STATUS_FILE"
+            
+            echo "[$(date '+%H:%M:%S')] Updated metadata: $STATE - $ARTIST - $TITLE"
+        fi
         
-        echo "[$(date '+%H:%M:%S')] Updated metadata: $STATE - $ARTIST - $TITLE"
         PREV_HASH=$STATUS_HASH
     fi
     
