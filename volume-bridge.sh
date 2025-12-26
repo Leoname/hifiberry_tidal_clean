@@ -55,6 +55,8 @@ fi
 
 CONSECUTIVE_ERRORS=0
 MAX_CONSECUTIVE_ERRORS=5
+LAST_RESTART_TIME=0
+RESTART_COOLDOWN=60  # Don't restart more than once per minute
 
 while true; do
     # Check if container is still available
@@ -163,19 +165,30 @@ while true; do
                 PREV_HASH=""  # Force update on next cycle
             fi
             
-            # If Tidal is PAUSED and holding the device, restart it (shouldn't happen if already restarted)
-            if [ "$STATE" = "PAUSED" ]; then
+            # Only restart Tidal if it's PAUSED and we haven't restarted recently (cooldown)
+            # This prevents constant restarts that interfere with UI controls
+            CURRENT_TIME=$(date +%s)
+            TIME_SINCE_RESTART=$((CURRENT_TIME - LAST_RESTART_TIME))
+            
+            if [ "$STATE" = "PAUSED" ] && [ "$TIME_SINCE_RESTART" -ge "$RESTART_COOLDOWN" ]; then
                 echo "[$(date '+%H:%M:%S')] MPD is playing but Tidal is PAUSED (holding ALSA device)"
                 echo "[$(date '+%H:%M:%S')] Restarting Tidal container to release ALSA device..."
                 systemctl restart tidal-gio.service
+                LAST_RESTART_TIME=$CURRENT_TIME
                 sleep 3  # Wait for container to restart
                 echo "[$(date '+%H:%M:%S')] Tidal container restarted, ALSA device should be free"
                 PREV_HASH=""  # Force update on next cycle
                 continue  # Skip to next iteration
+            elif [ "$STATE" = "PAUSED" ] && [ "$TIME_SINCE_RESTART" -lt "$RESTART_COOLDOWN" ]; then
+                # Tidal is PAUSED but we just restarted - don't restart again (cooldown)
+                echo "[$(date '+%H:%M:%S')] Restart cooldown: ${TIME_SINCE_RESTART}s"
             fi
         # If MPD has a track queued but can't play due to device busy, restart Tidal
         elif [ "$MPD_HAS_TRACK" = "yes" ] && [ "$MPD_ERROR" = "yes" ]; then
-            if [ "$STATE" = "PAUSED" ]; then
+            CURRENT_TIME=$(date +%s)
+            TIME_SINCE_RESTART=$((CURRENT_TIME - LAST_RESTART_TIME))
+            
+            if [ "$STATE" = "PAUSED" ] && [ "$TIME_SINCE_RESTART" -ge "$RESTART_COOLDOWN" ]; then
                 echo "[$(date '+%H:%M:%S')] MPD wants to play but Tidal is PAUSED (holding ALSA device)"
                 # Remove status file immediately to prevent stale metadata
                 if [ -f "$STATUS_FILE" ]; then
@@ -184,6 +197,7 @@ while true; do
                 fi
                 echo "[$(date '+%H:%M:%S')] Restarting Tidal container to release ALSA device..."
                 systemctl restart tidal-gio.service
+                LAST_RESTART_TIME=$CURRENT_TIME
                 sleep 3  # Wait for container to restart
                 echo "[$(date '+%H:%M:%S')] Tidal container restarted, ALSA device should be free"
                 PREV_HASH=""  # Force update on next cycle
