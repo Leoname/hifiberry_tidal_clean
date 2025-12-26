@@ -159,9 +159,12 @@ while true; do
         # This prevents stale Tidal metadata from showing when radio is playing
         if [ "$MPD_STATE" = "[playing]" ]; then
             # MPD is actively playing - remove Tidal status file to prevent metadata confusion
+            # This ensures AudioControl2 routes UI controls to MPD, not Tidal
             if [ -f "$STATUS_FILE" ]; then
                 rm -f "$STATUS_FILE"
                 echo "[$(date '+%H:%M:%S')] MPD is playing, removed Tidal status file"
+                # Touch a marker file to signal AudioControl2 to refresh player status
+                # The Tidal plugin checks file existence, so removing it should make it inactive
                 PREV_HASH=""  # Force update on next cycle
             fi
             
