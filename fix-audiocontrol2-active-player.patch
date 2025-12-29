@@ -1,0 +1,30 @@
+--- /opt/audiocontrol2/ac2/webserver.py.orig
++++ /opt/audiocontrol2/ac2/webserver.py
+@@ -264,7 +264,25 @@ class AudioControlWebserver:
+ 
+     def playercontrol_handler(self, command):
+         try:
+-            if not(self.send_command(command)):
++            # Try to send command
++            result = self.send_command(command)
++            
++            # If command failed because active_player is None, try to auto-select playing player
++            if not result and self.player_control is not None:
++                states = self.player_control.states()
++                # Find the first playing player
++                for player in states.get("players", []):
++                    if player.get("state", "").lower() == "playing":
++                        player_name = player.get("name")
++                        if player_name:
++                            logging.info("Auto-activating playing player: %s", player_name)
++                            # Activate the playing player
++                            if self.activate_player(player_name):
++                                # Retry the command
++                                result = self.send_command(command)
++                                break
++            
++            if not result:
+                 response.status = 500
+                 return "{} failed".format(command)
+         except Exception as e:
+
