@@ -29,7 +29,7 @@ echo ""
 
 # Fix using sed - replace the stop line
 echo "2. Applying fix..."
-sed -i "s/self\.player_control\.stop(ignore=ignore)/self.player_control.stop()  # Fix: stop() doesn't accept ignore parameter/g" "$WEBSERVER"
+sed -i 's/self\.player_control\.stop(ignore=ignore)/self.player_control.stop()/g' "$WEBSERVER"
 
 # Verify
 if grep -q "self.player_control.stop()" "$WEBSERVER" && ! grep -q "self.player_control.stop(ignore=" "$WEBSERVER"; then
