@@ -49,10 +49,10 @@ with open(webserver_file, 'r') as f:
 fixed = False
 for i, line in enumerate(lines):
     if 'elif command == "stop":' in line:
-        # Find the send_command("Stop") line
-        for j in range(i + 1, min(i + 25, len(lines))):
+        # Find the send_command("Stop") line - it should be after the auto-activation code
+        for j in range(i + 1, min(i + 30, len(lines))):
             if 'self.player_control.send_command("Stop")' in lines[j] or 'self.player_control.send_command(CMD_STOP)' in lines[j]:
-                # Get indentation
+                # Get indentation from the send_command line
                 indent = len(lines[j]) - len(lines[j].lstrip())
                 indent_str = ' ' * indent
                 
@@ -67,13 +67,15 @@ for i, line in enumerate(lines):
                             lines.insert(k + 1, 'import subprocess')
                             break
                 
-                # Insert clearing code before send_command
+                # Insert clearing code right before send_command line
+                # Make sure it's at the same indentation level as send_command
                 clearing_lines = [
                     f'{indent_str}# Clear playlist to prevent auto-resume',
                     f'{indent_str}try:',
                     f'{indent_str}    subprocess.run(["mpc", "clear"], check=False, capture_output=True, timeout=2)',
                     f'{indent_str}except:',
-                    f'{indent_str}    pass  # Ignore errors if mpc is not available'
+                    f'{indent_str}    pass  # Ignore errors if mpc is not available',
+                    ''  # Empty line for readability
                 ]
                 
                 # Insert before the send_command line
