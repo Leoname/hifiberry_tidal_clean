@@ -67,6 +67,16 @@ for i, line in enumerate(lines):
                             lines.insert(k + 1, 'import subprocess')
                             break
                 
+                # Check if there's already a break statement right before send_command
+                # If so, we need to insert after the break, not before
+                prev_line_idx = j - 1
+                if prev_line_idx >= 0 and 'break' in lines[prev_line_idx] and lines[prev_line_idx].strip().startswith('break'):
+                    # Insert after the break statement
+                    insert_pos = j
+                else:
+                    # Insert before send_command
+                    insert_pos = j
+                
                 # Insert clearing code right before send_command line
                 # Make sure it's at the same indentation level as send_command
                 clearing_lines = [
@@ -74,12 +84,11 @@ for i, line in enumerate(lines):
                     f'{indent_str}try:',
                     f'{indent_str}    subprocess.run(["mpc", "clear"], check=False, capture_output=True, timeout=2)',
                     f'{indent_str}except:',
-                    f'{indent_str}    pass  # Ignore errors if mpc is not available',
-                    ''  # Empty line for readability
+                    f'{indent_str}    pass  # Ignore errors if mpc is not available'
                 ]
                 
-                # Insert before the send_command line
-                lines[j:j] = clearing_lines
+                # Insert at the correct position
+                lines[insert_pos:insert_pos] = clearing_lines
                 fixed = True
                 break
         if fixed:
