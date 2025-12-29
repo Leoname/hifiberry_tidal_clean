@@ -32,11 +32,11 @@ echo "2. Applying fix..."
 sed -i 's/self\.player_control\.stop(ignore=ignore)/self.player_control.stop()  # Fix: stop() doesn't accept ignore parameter/g' "$WEBSERVER"
 
 # Verify
-if grep -q "self.player_control.stop()  # Fix: stop() doesn't accept ignore parameter" "$WEBSERVER"; then
+if grep -q "self.player_control.stop()" "$WEBSERVER" && ! grep -q "self.player_control.stop(ignore=" "$WEBSERVER"; then
     echo "✓ Fix applied successfully!"
     echo ""
     echo "3. Showing fixed code:"
-    grep -B 2 -A 2 "Fix: stop() doesn't accept ignore" "$WEBSERVER"
+    grep -B 2 -A 2 "self.player_control.stop()" "$WEBSERVER" | head -5
     echo ""
     echo "=========================================="
     echo "Fix Applied!"
