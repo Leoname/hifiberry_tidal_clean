@@ -55,11 +55,40 @@ for i, line in enumerate(lines):
         # Find the next line with stop()
         for j in range(i + 1, min(i + 5, len(lines))):
             if 'self.player_control.stop()' in lines[j]:
-                # Replace with send_command(CMD_STOP)
+                # Replace with send_command using CMD_STOP constant
                 indent = len(lines[j]) - len(lines[j].lstrip())
                 indent_str = ' ' * indent
-                # Need to import CMD_STOP if not already imported
-                lines[j] = f'{indent_str}self.player_control.send_command("Stop")\n'
+                # Check if CMD_STOP is imported, if not add import
+                has_import = False
+                for k in range(min(50, len(lines))):
+                    if 'from ac2.constants import' in lines[k] and 'CMD_STOP' in lines[k]:
+                        has_import = True
+                        break
+                    elif 'import' in lines[k] and 'CMD_STOP' in lines[k]:
+                        has_import = True
+                        break
+                
+                # Use the constant if available, otherwise use string
+                if has_import:
+                    lines[j] = f'{indent_str}self.player_control.send_command(CMD_STOP)\n'
+                else:
+                    # Try to add import at the top
+                    import_line = -1
+                    for k in range(min(30, len(lines))):
+                        if 'from ac2.constants import' in lines[k]:
+                            # Add CMD_STOP to existing import
+                            lines[k] = lines[k].rstrip() + ', CMD_STOP\n'
+                            import_line = k
+                            break
+                        elif 'import' in lines[k] and 'ac2' in lines[k]:
+                            import_line = k
+                            break
+                    
+                    if import_line >= 0:
+                        lines[j] = f'{indent_str}self.player_control.send_command(CMD_STOP)\n'
+                    else:
+                        # Fallback to string
+                        lines[j] = f'{indent_str}self.player_control.send_command("Stop")\n'
                 fixed = True
                 break
         if fixed:
