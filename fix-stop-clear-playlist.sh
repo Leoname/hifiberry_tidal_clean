@@ -52,15 +52,13 @@ with open(webserver_file, 'r') as f:
 fixed = False
 for i, line in enumerate(lines):
     if 'elif command == "stop":' in line:
-        # Find where send_command("Stop") is called
-        for j in range(i + 1, min(i + 20, len(lines))):
+        # Find where send_command("Stop") is called (after the auto-activation code)
+        for j in range(i + 1, min(i + 25, len(lines))):
             if 'self.player_control.send_command("Stop")' in lines[j] or 'self.player_control.send_command(CMD_STOP)' in lines[j]:
                 # Add playlist clearing before the stop command
                 indent = len(lines[j]) - len(lines[j].lstrip())
                 indent_str = ' ' * indent
                 
-                # Insert playlist clearing code before send_command
-                # We need to call MPD directly to clear the playlist
                 # Check if subprocess is imported
                 has_subprocess = False
                 for k in range(min(30, len(lines))):
@@ -77,7 +75,7 @@ for i, line in enumerate(lines):
                             lines.insert(k + 1, 'import subprocess\n')
                             break
                 
-                # Insert the playlist clearing code
+                # Insert the playlist clearing code BEFORE send_command
                 clearing_code = [
                     f'{indent_str}# Clear playlist to prevent auto-resume\n',
                     f'{indent_str}try:\n',
@@ -86,7 +84,7 @@ for i, line in enumerate(lines):
                     f'{indent_str}    pass  # Ignore errors if mpc is not available\n'
                 ]
                 
-                # Insert before send_command
+                # Insert before send_command line
                 lines[j:j] = clearing_code
                 fixed = True
                 break
