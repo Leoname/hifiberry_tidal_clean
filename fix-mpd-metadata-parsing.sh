@@ -40,32 +40,29 @@ fixed = False
 # Find get_meta() method and enhance it to parse "Artist - Title" format
 for i, line in enumerate(lines):
     if "def get_meta(self):" in line:
-        # Look for where artist and title are extracted
-        for j in range(i + 1, min(i + 60, len(lines))):
-            # Find where artist is set from song data
-            if "artist" in lines[j].lower() and ("=" in lines[j] or "song.get" in lines[j] or "song[" in lines[j]):
-                # Check if we need to add parsing logic
-                # Look ahead to see if title parsing exists
-                needs_fix = False
-                for k in range(j, min(j + 20, len(lines))):
-                    if "title" in lines[k].lower() and ("=" in lines[k] or "song.get" in lines[k]):
-                        # Check if artist is empty but title has "Artist - Title" format
-                        indent = len(lines[k]) - len(lines[k].lstrip())
-                        indent_str = ' ' * indent
-                        
-                        # Add logic to parse "Artist - Title" from title if artist is missing
+        # Look for where map_attributes is called or where md is returned
+        for j in range(i + 1, min(i + 30, len(lines))):
+            # Find where map_attributes is called
+            if "map_attributes" in lines[j]:
+                # Add parsing after map_attributes but before return
+                indent = len(lines[j]) - len(lines[j].lstrip())
+                indent_str = ' ' * indent
+                
+                # Find the return statement
+                for k in range(j + 1, min(j + 10, len(lines))):
+                    if "return md" in lines[k] or "return" in lines[k]:
+                        # Insert parsing logic before return
                         parse_code = [
                             f'{indent_str}# Parse "Artist - Title" format from title if artist is missing\n',
                             f'{indent_str}if not md.artist and md.title and " - " in md.title:\n',
-                            f'{indent_str}    # Split "Artist - Title" format\n',
+                            f'{indent_str}    # Split "Artist - Title" format (common in radio streams)\n',
                             f'{indent_str}    parts = md.title.split(" - ", 1)\n',
                             f'{indent_str}    if len(parts) == 2:\n',
                             f'{indent_str}        md.artist = parts[0].strip()\n',
                             f'{indent_str}        md.title = parts[1].strip()\n'
                         ]
                         
-                        # Insert after title is set
-                        lines[k+1:k+1] = parse_code
+                        lines[k:k] = parse_code
                         fixed = True
                         print("✓ Added metadata parsing for 'Artist - Title' format")
                         break
@@ -74,21 +71,20 @@ for i, line in enumerate(lines):
         break
 
 if not fixed:
-    print("⚠ Could not find get_meta() method or metadata assignment")
-    print("   Checking if metadata is set differently...")
+    print("⚠ Could not find map_attributes call, trying alternative approach...")
     
-    # Try alternative approach - look for where Metadata() is created
+    # Try alternative - look for return md statement in get_meta
     for i, line in enumerate(lines):
-        if "Metadata()" in line or "md = Metadata()" in line or "meta = Metadata()" in line:
-            # Find where title is set
+        if "def get_meta(self):" in line:
+            # Find return statement
             for j in range(i + 1, min(i + 30, len(lines))):
-                if "title" in lines[j].lower() and ("=" in lines[j] or ".title" in lines[j]):
+                if "return md" in lines[j]:
                     indent = len(lines[j]) - len(lines[j].lstrip())
                     indent_str = ' ' * indent
                     
-                    # Add parsing after title assignment
+                    # Insert before return
                     parse_code = [
-                        f'\n{indent_str}# Parse "Artist - Title" format from title if artist is missing\n',
+                        f'{indent_str}# Parse "Artist - Title" format from title if artist is missing\n',
                         f'{indent_str}if hasattr(md, "artist") and hasattr(md, "title"):\n',
                         f'{indent_str}    if not md.artist and md.title and " - " in md.title:\n',
                         f'{indent_str}        parts = md.title.split(" - ", 1)\n',
@@ -97,9 +93,9 @@ if not fixed:
                         f'{indent_str}            md.title = parts[1].strip()\n'
                     ]
                     
-                    lines[j+1:j+1] = parse_code
+                    lines[j:j] = parse_code
                     fixed = True
-                    print("✓ Added metadata parsing (alternative location)")
+                    print("✓ Added metadata parsing (before return)")
                     break
             if fixed:
                 break
