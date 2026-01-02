@@ -53,13 +53,20 @@ for i, line in enumerate(lines):
                     if "return md" in lines[k] or "return" in lines[k]:
                         # Insert parsing logic before return
                         parse_code = [
-                            f'{indent_str}# Parse "Artist - Title" format from title if artist is missing\n',
-                            f'{indent_str}if not md.artist and md.title and " - " in md.title:\n',
-                            f'{indent_str}    # Split "Artist - Title" format (common in radio streams)\n',
-                            f'{indent_str}    parts = md.title.split(" - ", 1)\n',
-                            f'{indent_str}    if len(parts) == 2:\n',
-                            f'{indent_str}        md.artist = parts[0].strip()\n',
-                            f'{indent_str}        md.title = parts[1].strip()\n'
+                            f'{indent_str}# Parse "Artist - Title" or "Artist / Title" format from title if artist is missing\n',
+                            f'{indent_str}if not md.artist and md.title:\n',
+                            f'{indent_str}    # Try " - " format first (most common)\n',
+                            f'{indent_str}    if " - " in md.title:\n',
+                            f'{indent_str}        parts = md.title.split(" - ", 1)\n',
+                            f'{indent_str}        if len(parts) == 2:\n',
+                            f'{indent_str}            md.artist = parts[0].strip()\n',
+                            f'{indent_str}            md.title = parts[1].strip()\n',
+                            f'{indent_str}    # Try " / " format (some radio stations use this)\n',
+                            f'{indent_str}    elif " / " in md.title:\n',
+                            f'{indent_str}        parts = md.title.split(" / ", 1)\n',
+                            f'{indent_str}        if len(parts) == 2:\n',
+                            f'{indent_str}            md.artist = parts[1].strip()  # Artist is usually after / in this format\n',
+                            f'{indent_str}            md.title = parts[0].strip()\n'
                         ]
                         
                         lines[k:k] = parse_code
@@ -84,13 +91,21 @@ if not fixed:
                     
                     # Insert before return
                     parse_code = [
-                        f'{indent_str}# Parse "Artist - Title" format from title if artist is missing\n',
+                        f'{indent_str}# Parse "Artist - Title" or "Artist / Title" format from title if artist is missing\n',
                         f'{indent_str}if hasattr(md, "artist") and hasattr(md, "title"):\n',
-                        f'{indent_str}    if not md.artist and md.title and " - " in md.title:\n',
-                        f'{indent_str}        parts = md.title.split(" - ", 1)\n',
-                        f'{indent_str}        if len(parts) == 2:\n',
-                        f'{indent_str}            md.artist = parts[0].strip()\n',
-                        f'{indent_str}            md.title = parts[1].strip()\n'
+                        f'{indent_str}    if not md.artist and md.title:\n',
+                        f'{indent_str}        # Try " - " format first (most common)\n',
+                        f'{indent_str}        if " - " in md.title:\n',
+                        f'{indent_str}            parts = md.title.split(" - ", 1)\n',
+                        f'{indent_str}            if len(parts) == 2:\n',
+                        f'{indent_str}                md.artist = parts[0].strip()\n',
+                        f'{indent_str}                md.title = parts[1].strip()\n',
+                        f'{indent_str}        # Try " / " format (some radio stations use this)\n',
+                        f'{indent_str}        elif " / " in md.title:\n',
+                        f'{indent_str}            parts = md.title.split(" / ", 1)\n',
+                        f'{indent_str}            if len(parts) == 2:\n',
+                        f'{indent_str}                md.artist = parts[1].strip()  # Artist is usually after / in this format\n',
+                        f'{indent_str}                md.title = parts[0].strip()\n'
                     ]
                     
                     lines[j:j] = parse_code
