@@ -37,7 +37,7 @@ duplicate_found = False
 for i, line in enumerate(lines):
     if "if current_song_id != self.last_song_id or current_title != self.last_title:" in line:
         # Check if the next few lines have the same pattern
-        for j in range(i+1, min(i+10, len(lines)))):
+        for j in range(i+1, min(i+10, len(lines))):
             if "if current_song_id != self.last_song_id or current_title != self.last_title:" in lines[j] and j != i:
                 print(f"   Found duplicate if statement at lines {i+1} and {j+1}")
                 # Remove the duplicate (keep the first one)
