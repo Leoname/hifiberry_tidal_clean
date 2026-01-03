@@ -39,17 +39,17 @@ if [ $? -ne 0 ]; then
 fi
 echo ""
 
-echo "Step 4: Fixing metadata parsing (Artist - Title format)..."
-./fix-mpd-metadata-parsing.sh
+echo "Step 4: Cleaning up duplicate code..."
+./fix-mpd-cleanup-duplicates.sh
 if [ $? -ne 0 ]; then
-    echo "⚠ Metadata parsing fix had issues, but continuing..."
+    echo "⚠ Cleanup had issues, but continuing..."
 fi
 echo ""
 
-echo "Step 5: Cleaning up duplicate parsing code..."
-./fix-mpd-metadata-cleanup.sh
+echo "Step 5: Fixing metadata parsing (Artist - Title format)..."
+./fix-mpd-metadata-parsing-v2.sh
 if [ $? -ne 0 ]; then
-    echo "⚠ Cleanup had issues, but continuing..."
+    echo "⚠ Metadata parsing fix had issues, but continuing..."
 fi
 echo ""
 
