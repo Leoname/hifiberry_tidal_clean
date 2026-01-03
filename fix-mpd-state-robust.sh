@@ -108,9 +108,6 @@ try:
     print("✓ Fix applied successfully!")
 except py_compile.PyCompileError as e:
     print(f"✗ Syntax error: {e}")
-    print("Restoring backup...")
-    import shutil
-    shutil.copy(backup, mpd_control_file)
     sys.exit(1)
 PYTHON_FIX
 
