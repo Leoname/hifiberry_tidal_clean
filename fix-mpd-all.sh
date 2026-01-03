@@ -53,6 +53,13 @@ if [ $? -ne 0 ]; then
 fi
 echo ""
 
+echo "Step 6: Forcing metadata refresh..."
+./fix-mpd-force-refresh.sh
+if [ $? -ne 0 ]; then
+    echo "⚠ Force refresh fix had issues, but continuing..."
+fi
+echo ""
+
 echo "=========================================="
 echo "All Fixes Applied!"
 echo "=========================================="
