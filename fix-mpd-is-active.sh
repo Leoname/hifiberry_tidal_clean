@@ -49,6 +49,10 @@ for i, line in enumerate(lines):
                 method_end = j
                 break
         
+        # Get indentation from the method definition line itself
+        indent = len(line) - len(line.lstrip())
+        indent_str = ' ' * indent
+        
         # Check if it already checks get_state()
         method_body = "".join(lines[i:method_end])
         
@@ -56,9 +60,6 @@ for i, line in enumerate(lines):
             print("   ⚠ is_active() already checks get_state() and STATE_PLAYING")
             # But maybe it's not working correctly, let's enhance it
             # Replace the method with a more robust version
-            indent = len(lines[i + 1]) - len(lines[i + 1].lstrip())
-            indent_str = ' ' * indent
-            
             new_method = [
                 f'{indent_str}def is_active(self):\n',
                 f'{indent_str}    """Return True if MPD is playing or paused"""\n',
@@ -77,9 +78,6 @@ for i, line in enumerate(lines):
             break
         elif "get_state()" not in method_body:
             # Method doesn't check get_state(), add it
-            indent = len(lines[i + 1]) - len(lines[i + 1].lstrip())
-            indent_str = ' ' * indent
-            
             # Replace with new implementation
             new_method = [
                 f'{indent_str}def is_active(self):\n',
