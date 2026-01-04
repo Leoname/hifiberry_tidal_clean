@@ -35,16 +35,23 @@ fixed = False
 # Find playerstatus_handler method
 for i, line in enumerate(lines):
     if "def playerstatus_handler(self):" in line:
-        # Find the return statement
+        # Find where states() is called and the return statement
+        states_line = -1
+        return_line = -1
         for j in range(i + 1, min(i + 20, len(lines))):
-            if "return" in lines[j] and "states()" in lines[j]:
-                # Replace the simple return with filtering logic
-                indent = len(lines[j]) - len(lines[j].lstrip())
-                indent_str = ' ' * indent
-                
-                # Get the variable name (usually "states" or similar)
-                return_line = lines[j]
-                if "states()" in return_line:
+            if "states()" in lines[j] or "self.player_control.states()" in lines[j]:
+                states_line = j
+            if "return" in lines[j] and (states_line != -1 or "states" in lines[j]):
+                return_line = j
+                break
+        
+        if states_line != -1 and return_line != -1:
+            # Replace the simple return with filtering logic
+            indent = len(lines[return_line]) - len(lines[return_line].lstrip())
+            indent_str = ' ' * indent
+            
+            # Check if states is already assigned to a variable
+            if "states = " in lines[states_line]:
                     # Replace with code that gets states, filters, then returns
                     new_code = [
                         f'{indent_str}states = self.player_control.states()\n',
@@ -62,10 +69,35 @@ for i, line in enumerate(lines):
                     ]
                     
                     # Remove old return line and insert new code
-                    lines[j:j+1] = new_code
+                    lines[return_line:return_line+1] = new_code
                     fixed = True
-                    print(f"   ✓ Replaced return statement with filtering logic at line {j+1}")
+                    print(f"   ✓ Replaced return statement with filtering logic at line {return_line+1}")
                     break
+            else:
+                # states() is called directly in return, need to assign it first
+                indent = len(lines[return_line]) - len(lines[return_line].lstrip())
+                indent_str = ' ' * indent
+                
+                # Replace return with assignment + filter + return
+                new_code = [
+                    f'{indent_str}states = self.player_control.states()\n',
+                    f'{indent_str}# Filter out MPRIS MPD player, keep only MPDControl\n',
+                    f'{indent_str}if "players" in states and isinstance(states["players"], list):\n',
+                    f'{indent_str}    mpd_players = [p for p in states["players"] if p.get("name") == "mpd"]\n',
+                    f'{indent_str}    if len(mpd_players) > 1:\n',
+                    f'{indent_str}        # Keep MPDControl (11 commands), remove MPRIS (5 commands)\n',
+                    f'{indent_str}        mpd_control = [p for p in mpd_players if len(p.get("supported_commands", [])) > 5]\n',
+                    f'{indent_str}        if mpd_control:\n',
+                    f'{indent_str}            # Remove all MPD players, add only MPDControl\n',
+                    f'{indent_str}            states["players"] = [p for p in states["players"] if p.get("name") != "mpd"]\n',
+                    f'{indent_str}            states["players"].extend(mpd_control)\n',
+                    f'{indent_str}return states\n'
+                ]
+                
+                lines[return_line:return_line+1] = new_code
+                fixed = True
+                print(f"   ✓ Replaced return statement with filtering logic at line {return_line+1}")
+                break
         break
 
 # Remove any old incorrect filter code
