@@ -30,55 +30,76 @@ webserver_file = "/opt/audiocontrol2/ac2/webserver.py"
 with open(webserver_file, 'r') as f:
     lines = f.readlines()
 
+# Step 1: Remove any old incorrect filter code FIRST (before adding new code)
+# Look backwards through the file to find and remove old filter blocks
+removed_old_filter = False
+i = len(lines) - 1
+while i >= 0:
+    line = lines[i]
+    # Look for old incorrect filter patterns
+    if "Filter: Keep only MPDControl" in line or ("if \"players\" in locals()" in line and i > 0 and "Filter" in lines[i-1]):
+        # Found start of old filter, find its end
+        base_indent = len(line) - len(line.lstrip())
+        filter_start = i
+        filter_end = i + 1
+        
+        # Look for the end of this block
+        for j in range(i + 1, min(i + 20, len(lines))):
+            if lines[j].strip() and not lines[j].strip().startswith('#'):
+                line_indent = len(lines[j]) - len(lines[j].lstrip())
+                # If we hit a line at same or less indentation, it's the end
+                if line_indent <= base_indent:
+                    filter_end = j
+                    break
+        
+        if filter_end > filter_start:
+            print(f"   ✓ Removing old incorrect filter at lines {filter_start+1}-{filter_end}")
+            del lines[filter_start:filter_end]
+            removed_old_filter = True
+            i = filter_start - 1  # Continue from before the removed block
+            continue
+    i -= 1
+
 fixed = False
 
-# Find playerstatus_handler method
+# Step 2: Find playerstatus_handler method and add new filter code
 for i, line in enumerate(lines):
     if "def playerstatus_handler(self):" in line:
         # Find where states() is called and the return statement
         states_line = -1
         return_line = -1
-        for j in range(i + 1, min(i + 20, len(lines))):
-            if "states()" in lines[j] or "self.player_control.states()" in lines[j]:
+        for j in range(i + 1, min(i + 30, len(lines))):
+            if ("states()" in lines[j] or "self.player_control.states()" in lines[j]) and states_line == -1:
                 states_line = j
             if "return" in lines[j] and (states_line != -1 or "states" in lines[j]):
-                return_line = j
-                break
+                # Make sure this return is part of playerstatus_handler (not next method)
+                if j < i + 30:  # Within reasonable distance
+                    return_line = j
+                    break
         
         if states_line != -1 and return_line != -1:
-            # Replace the simple return with filtering logic
+            # Get the indentation from the return line
             indent = len(lines[return_line]) - len(lines[return_line].lstrip())
             indent_str = ' ' * indent
             
             # Check if states is already assigned to a variable
             if "states = " in lines[states_line]:
-                    # Replace with code that gets states, filters, then returns
-                    new_code = [
-                        f'{indent_str}states = self.player_control.states()\n',
-                        f'{indent_str}# Filter out MPRIS MPD player, keep only MPDControl\n',
-                        f'{indent_str}if "players" in states and isinstance(states["players"], list):\n',
-                        f'{indent_str}    mpd_players = [p for p in states["players"] if p.get("name") == "mpd"]\n',
-                        f'{indent_str}    if len(mpd_players) > 1:\n',
-                        f'{indent_str}        # Keep MPDControl (11 commands), remove MPRIS (5 commands)\n',
-                        f'{indent_str}        mpd_control = [p for p in mpd_players if len(p.get("supported_commands", [])) > 5]\n',
-                        f'{indent_str}        if mpd_control:\n',
-                        f'{indent_str}            # Remove all MPD players, add only MPDControl\n',
-                        f'{indent_str}            states["players"] = [p for p in states["players"] if p.get("name") != "mpd"]\n',
-                        f'{indent_str}            states["players"].extend(mpd_control)\n',
-                        f'{indent_str}return states\n'
-                    ]
-                    
-                    # Remove old return line and insert new code
-                    lines[return_line:return_line+1] = new_code
-                    fixed = True
-                    print(f"   ✓ Replaced return statement with filtering logic at line {return_line+1}")
-                    break
+                # States is already assigned, just replace the return with filter + return
+                new_code = [
+                    f'{indent_str}# Filter out MPRIS MPD player, keep only MPDControl\n',
+                    f'{indent_str}if "players" in states and isinstance(states["players"], list):\n',
+                    f'{indent_str}    mpd_players = [p for p in states["players"] if p.get("name") == "mpd"]\n',
+                    f'{indent_str}    if len(mpd_players) > 1:\n',
+                    f'{indent_str}        # Keep MPDControl (11 commands), remove MPRIS (5 commands)\n',
+                    f'{indent_str}        mpd_control = [p for p in mpd_players if len(p.get("supported_commands", [])) > 5]\n',
+                    f'{indent_str}        if mpd_control:\n',
+                    f'{indent_str}            # Remove all MPD players, add only MPDControl\n',
+                    f'{indent_str}            states["players"] = [p for p in states["players"] if p.get("name") != "mpd"]\n',
+                    f'{indent_str}            states["players"].extend(mpd_control)\n',
+                    f'{indent_str}return states\n'
+                ]
             else:
                 # states() is called directly in return, need to assign it first
-                indent = len(lines[return_line]) - len(lines[return_line].lstrip())
-                indent_str = ' ' * indent
-                
-                # Replace return with assignment + filter + return
                 new_code = [
                     f'{indent_str}states = self.player_control.states()\n',
                     f'{indent_str}# Filter out MPRIS MPD player, keep only MPDControl\n',
@@ -93,32 +114,11 @@ for i, line in enumerate(lines):
                     f'{indent_str}            states["players"].extend(mpd_control)\n',
                     f'{indent_str}return states\n'
                 ]
-                
-                lines[return_line:return_line+1] = new_code
-                fixed = True
-                print(f"   ✓ Replaced return statement with filtering logic at line {return_line+1}")
-                break
-        break
-
-# Remove any old incorrect filter code
-if fixed:
-    # Look for the old incorrect filter we added
-    for i, line in enumerate(lines):
-        if "Filter: Keep only MPDControl" in line and "if \"players\" in locals()" in "".join(lines[i:i+3]):
-            # Remove this incorrect filter (it's checking wrong variable)
-            # Find the end of this block
-            for j in range(i, min(i+15, len(lines))):
-                if lines[j].strip() and not lines[j].strip().startswith('#') and \
-                   lines[j].strip() != "pass" and "except" not in lines[j]:
-                    # Check if next non-comment line is at same or less indentation
-                    if j+1 < len(lines):
-                        next_indent = len(lines[j+1]) - len(lines[j+1].lstrip())
-                        current_indent = len(lines[j]) - len(lines[j].lstrip())
-                        if next_indent <= current_indent and lines[j+1].strip():
-                            # End of block
-                            print(f"   ✓ Removing old incorrect filter at lines {i+1}-{j+1}")
-                            lines[i:j+1] = []
-                            break
+            
+            # Replace the return line with new code
+            lines[return_line:return_line+1] = new_code
+            fixed = True
+            print(f"   ✓ Replaced return statement with filtering logic at line {return_line+1}")
             break
 
 if not fixed:
